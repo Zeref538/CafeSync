@@ -23,8 +23,18 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
+    // Only initialize socket connection in development or if server URL is provided
+    const serverUrl = process.env.REACT_APP_SERVER_URL;
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    if (!serverUrl && !isDevelopment) {
+      // In production without server URL, skip socket connection
+      console.log('Socket connection skipped in production');
+      return;
+    }
+
     // Initialize socket connection
-    const newSocket = io(process.env.REACT_APP_SERVER_URL || 'http://localhost:5000', {
+    const newSocket = io(serverUrl || 'http://localhost:5000', {
       transports: ['websocket', 'polling'],
       timeout: 20000,
       forceNew: true,
@@ -34,13 +44,15 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     newSocket.on('connect', () => {
       console.log('Connected to server');
       setIsConnected(true);
-      toast.success('Connected to CafeSync server');
+      if (isDevelopment) {
+        toast.success('Connected to CafeSync server');
+      }
     });
 
     newSocket.on('disconnect', (reason) => {
       console.log('Disconnected from server:', reason);
       setIsConnected(false);
-      if (reason === 'io server disconnect') {
+      if (reason === 'io server disconnect' && isDevelopment) {
         toast.error('Disconnected from server');
       }
     });
@@ -48,7 +60,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     newSocket.on('connect_error', (error) => {
       console.error('Connection error:', error);
       setIsConnected(false);
-      toast.error('Failed to connect to server');
+      // Only show error toast in development
+      if (isDevelopment) {
+        toast.error('Failed to connect to server');
+      }
     });
 
     // Global event handlers
@@ -59,7 +74,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
     newSocket.on('inventory-update', (data) => {
       console.log('Inventory update received:', data);
-      toast.success(`Inventory updated: ${data.itemName}`);
+      if (isDevelopment) {
+        toast.success(`Inventory updated: ${data.itemName}`);
+      }
     });
 
     newSocket.on('analytics-update', (data) => {
