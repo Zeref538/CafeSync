@@ -1,0 +1,181 @@
+CafeSync - Installation & Run Guide
+Prerequisites
+Node.js 18.x or higher
+
+Python 3.11.x (Recommended: 3.11.9)
+
+npm (comes with Node.js)
+
+Git
+
+Step 1: Install Node.js
+Download and Install Node.js
+Go to: https://nodejs.org/
+
+Download the LTS version (Recommended: 18.x or 20.x)
+
+Run the installer with default settings
+
+Verify installation:
+
+cmd
+node --version
+npm --version
+Expected Output:
+text
+node --version  # Should show v18.x.x or higher
+npm --version   # Should show 8.x.x or higher
+Step 2: Install Python 3.11.9
+Download from: https://www.python.org/downloads/release/python-3119/
+
+Run installer with these options:
+
+Add Python to PATH
+
+Install pip
+
+Install for all users (if you have admin rights)
+
+Verify installation:
+
+cmd
+python --version
+pip --version
+Expected Output:
+text
+Python 3.11.9
+pip 23.x.x from ... (python 3.11)
+Step 3: Project Setup
+Navigate to Project Directory
+cmd
+cd "C:\Users\ADMIN\Documents\Portfolio\CafeSync"
+Install All Dependencies
+cmd
+npm run install-all
+This command automatically installs:
+
+Frontend dependencies (React)
+
+Backend dependencies (Node.js)
+
+AI service dependencies (Python)
+
+Step 4: Manual Installation (If Auto-Install Fails)
+Install Frontend Dependencies
+cmd
+cd client
+npm install --legacy-peer-deps
+cd ..
+Install Backend Dependencies
+cmd
+cd server
+npm install
+cd ..
+Install AI Services Dependencies
+cmd
+cd ai-services
+python -m pip install -r requirements.txt
+cd ..
+Step 5: Running the Application
+Option 1: Run All Services (Recommended)
+cmd
+npm run dev
+This starts all three services:
+
+Frontend on http://localhost:3000
+
+Backend on http://localhost:5000
+
+AI Services on http://localhost:8000
+
+Option 2: Run Services Individually
+Start Backend Server
+cmd
+cd server
+npm start
+Start AI Services (Open New Terminal)
+cmd
+cd ai-services
+python app.py
+Start Frontend (Open New Terminal)
+cmd
+cd client
+npm start
+Troubleshooting Common Issues
+Python/pip Issues
+cmd
+# If pip command not found:
+python -m ensurepip
+python -m pip install --upgrade pip
+
+# Use python -m pip instead of pip directly:
+python -m pip install -r requirements.txt
+Node.js Dependency Conflicts
+cmd
+# Clear cache and reinstall
+npm cache clean --force
+cd client
+npm install --legacy-peer-deps
+Port Already in Use
+cmd
+# Find processes using ports 3000, 5000, 8000
+netstat -ano | findstr :3000
+taskkill /PID [PID-NUMBER] /F
+Fix Python Path Conflicts
+If you have multiple Python versions:
+
+cmd
+# Use the specific Python version
+py -3.11 -m pip install -r requirements.txt
+Verification Checklist
+After running npm run dev, check these:
+
+Frontend: http://localhost:3000 loads without errors
+
+Backend: Terminal shows "Server running on port 5000"
+
+AI Services: Terminal shows "AI services running on port 8000"
+
+Browser Console: No CORS or connection errors
+
+Using the Application
+Open Browser: Go to http://localhost:3000
+
+Access Different Views:
+
+Staff View: Order management, inventory tracking
+
+Manager View: Analytics, reports, sales forecasting
+
+Demo Data: System includes sample data for testing
+
+Test Key Features:
+
+Place test orders
+
+Check automatic inventory updates
+
+View real-time sales dashboard
+
+Test AI drink recommendations
+
+Check loyalty point system
+
+Stopping the Application
+Press Ctrl + C in each terminal window to stop the services.
+
+Support
+If you encounter issues:
+
+Verify all three services are running on correct ports
+
+Confirm Python 3.11.x is properly installed and in PATH
+
+Check that no firewall is blocking local connections
+
+Try restarting your computer and running again
+
+Use Command Prompt instead of PowerShell if issues persist
+
+Your CafeSync system should now be running successfully!
+
