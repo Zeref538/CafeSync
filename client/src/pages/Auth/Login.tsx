@@ -13,6 +13,7 @@ import {
   IconButton,
   Divider,
   Chip,
+  useTheme,
 } from '@mui/material';
 import {
   Visibility,
@@ -32,6 +33,7 @@ const Login: React.FC = () => {
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const theme = useTheme();
 
   const from = (location.state as any)?.from?.pathname || '/dashboard';
 
@@ -74,7 +76,9 @@ const Login: React.FC = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #8B4513 0%, #A0522D 50%, #D2691E 100%)',
+        background: theme.palette.mode === 'dark' 
+          ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #3a3a3a 100%)'
+          : 'linear-gradient(135deg, #8B4513 0%, #A0522D 50%, #D2691E 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -85,7 +89,9 @@ const Login: React.FC = () => {
         <Card
           sx={{
             borderRadius: 4,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+            boxShadow: theme.palette.mode === 'dark' 
+              ? '0 20px 40px rgba(0,0,0,0.3)' 
+              : '0 20px 40px rgba(0,0,0,0.1)',
             overflow: 'hidden',
           }}
         >

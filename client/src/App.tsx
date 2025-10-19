@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Box } from '@mui/material';
+import { Box, useTheme } from '@mui/material';
 
 // Layout components
 import Layout from './components/Layout/Layout';
@@ -20,10 +20,12 @@ import Kitchen from './pages/Stations/Kitchen';
 import Management from './pages/Stations/Management';
 
 function App() {
+  const theme = useTheme();
+  
   return (
     <Box sx={{ 
       minHeight: '100vh',
-      backgroundColor: '#f5f5f5',
+      backgroundColor: theme.palette.background.default,
       touchAction: 'manipulation'
     }}>
       <Routes>

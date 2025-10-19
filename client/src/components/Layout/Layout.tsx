@@ -29,6 +29,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import NavigationItem from './NavigationItem';
 import UserMenu from './UserMenu';
+import DarkModeToggle from './DarkModeToggle';
 
 const drawerWidth = 280;
 
@@ -196,7 +197,12 @@ const Layout: React.FC = () => {
       </Box>
 
       {/* User Menu */}
-      <Box sx={{ p: 2, borderTop: '1px solid #e0e0e0' }}>
+      <Box sx={{ 
+        p: 2, 
+        borderTop: theme.palette.mode === 'dark' 
+          ? '1px solid rgba(255,255,255,0.12)' 
+          : '1px solid #e0e0e0' 
+      }}>
         <UserMenu />
       </Box>
     </Box>
@@ -210,9 +216,11 @@ const Layout: React.FC = () => {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          backgroundColor: 'white',
+          backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
           color: 'text.primary',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          boxShadow: theme.palette.mode === 'dark' 
+            ? '0 2px 4px rgba(255,255,255,0.1)' 
+            : '0 2px 4px rgba(0,0,0,0.1)',
         }}
       >
         <Toolbar>
@@ -230,6 +238,8 @@ const Layout: React.FC = () => {
             {navigationItems.find(item => item.path === location.pathname)?.text || 'CafeSync'}
           </Typography>
 
+          <DarkModeToggle />
+          
           <IconButton color="inherit" sx={{ mr: 1 }}>
             <Badge badgeContent={5} color="error">
               <NotificationsIcon />
@@ -254,7 +264,9 @@ const Layout: React.FC = () => {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              borderRight: '1px solid #e0e0e0',
+              borderRight: theme.palette.mode === 'dark' 
+                ? '1px solid rgba(255,255,255,0.12)' 
+                : '1px solid #e0e0e0',
             },
           }}
         >
@@ -271,7 +283,7 @@ const Layout: React.FC = () => {
           width: { md: `calc(100% - ${drawerWidth}px)` },
           mt: '64px', // Account for AppBar height
           minHeight: 'calc(100vh - 64px)',
-          backgroundColor: '#f5f5f5',
+          backgroundColor: theme.palette.background.default,
         }}
       >
         <Outlet />

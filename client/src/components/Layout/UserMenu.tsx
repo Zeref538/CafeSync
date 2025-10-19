@@ -9,6 +9,7 @@ import {
   Divider,
   ListItemIcon,
   ListItemText,
+  useTheme,
 } from '@mui/material';
 import {
   AccountCircle,
@@ -21,6 +22,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const UserMenu: React.FC = () => {
   const { user, logout } = useAuth();
+  const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
 
@@ -67,7 +69,9 @@ const UserMenu: React.FC = () => {
           borderRadius: 2,
           cursor: 'pointer',
           '&:hover': {
-            backgroundColor: '#f5f5f5',
+            backgroundColor: theme.palette.mode === 'dark' 
+              ? 'rgba(255,255,255,0.08)' 
+              : '#f5f5f5',
           },
         }}
         onClick={handleClick}

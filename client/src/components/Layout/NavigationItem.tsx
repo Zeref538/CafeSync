@@ -7,6 +7,7 @@ import {
   ListItemText,
   Badge,
   Box,
+  useTheme,
 } from '@mui/material';
 import { ReactElement } from 'react';
 
@@ -29,6 +30,7 @@ const NavigationItem: React.FC<NavigationItemProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const theme = useTheme();
 
   const handleClick = () => {
     navigate(path);
@@ -47,7 +49,11 @@ const NavigationItem: React.FC<NavigationItemProps> = ({
           backgroundColor: isCurrentPath || isActive ? '#8B4513' : 'transparent',
           color: isCurrentPath || isActive ? 'white' : 'text.primary',
           '&:hover': {
-            backgroundColor: isCurrentPath || isActive ? '#A0522D' : '#f5f5f5',
+            backgroundColor: isCurrentPath || isActive 
+              ? '#A0522D' 
+              : theme.palette.mode === 'dark' 
+                ? 'rgba(255,255,255,0.08)' 
+                : '#f5f5f5',
           },
           transition: 'all 0.2s ease-in-out',
         }}

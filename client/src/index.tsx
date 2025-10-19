@@ -9,6 +9,7 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import { SocketProvider } from './contexts/SocketContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider as CustomThemeProvider, useTheme as useCustomTheme } from './contexts/ThemeContext';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -22,8 +23,9 @@ const queryClient = new QueryClient({
 });
 
 // Create theme for tablet-optimized design
-const theme = createTheme({
+const createAppTheme = (isDarkMode: boolean) => createTheme({
   palette: {
+    mode: isDarkMode ? 'dark' : 'light',
     primary: {
       main: '#8B4513', // Coffee brown
       light: '#A0522D',
@@ -37,12 +39,12 @@ const theme = createTheme({
       contrastText: '#ffffff',
     },
     background: {
-      default: '#f5f5f5',
-      paper: '#ffffff',
+      default: isDarkMode ? '#121212' : '#f5f5f5',
+      paper: isDarkMode ? '#1e1e1e' : '#ffffff',
     },
     text: {
-      primary: '#333333',
-      secondary: '#666666',
+      primary: isDarkMode ? '#ffffff' : '#333333',
+      secondary: isDarkMode ? '#b3b3b3' : '#666666',
     },
   },
   typography: {
@@ -165,6 +167,50 @@ const theme = createTheme({
   },
 });
 
+// Theme wrapper component
+const ThemeWrapper: React.FC = () => {
+  const { isDarkMode } = useCustomTheme();
+  const theme = createAppTheme(isDarkMode);
+
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <BrowserRouter>
+        <AuthProvider>
+          <SocketProvider>
+            <App />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: isDarkMode ? '#2e2e2e' : '#333',
+                  color: '#fff',
+                  fontSize: '16px',
+                  borderRadius: '12px',
+                  padding: '16px',
+                },
+                success: {
+                  iconTheme: {
+                    primary: '#4caf50',
+                    secondary: '#fff',
+                  },
+                },
+                error: {
+                  iconTheme: {
+                    primary: '#f44336',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
+          </SocketProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
+  );
+};
+
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
@@ -172,41 +218,9 @@ const root = ReactDOM.createRoot(
 root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <BrowserRouter>
-          <AuthProvider>
-            <SocketProvider>
-              <App />
-              <Toaster
-                position="top-right"
-                toastOptions={{
-                  duration: 4000,
-                  style: {
-                    background: '#333',
-                    color: '#fff',
-                    fontSize: '16px',
-                    borderRadius: '12px',
-                    padding: '16px',
-                  },
-                  success: {
-                    iconTheme: {
-                      primary: '#4caf50',
-                      secondary: '#fff',
-                    },
-                  },
-                  error: {
-                    iconTheme: {
-                      primary: '#f44336',
-                      secondary: '#fff',
-                    },
-                  },
-                }}
-              />
-            </SocketProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </ThemeProvider>
+      <CustomThemeProvider>
+        <ThemeWrapper />
+      </CustomThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );
