@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -222,6 +222,24 @@ const Login: React.FC = () => {
                 sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
               >
                 Kitchen Station
+              </Button>
+            </Box>
+
+            <Divider sx={{ my: 3 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                New to CafeSync?
+              </Typography>
+            </Divider>
+
+            <Box sx={{ textAlign: 'center' }}>
+              <Button
+                component={Link}
+                to="/signup"
+                variant="outlined"
+                fullWidth
+                sx={{ textTransform: 'none' }}
+              >
+                Create New Account
               </Button>
             </Box>
 

@@ -8,8 +8,6 @@ import {
   TextField,
   Button,
   Switch,
-  FormControlLabel,
-  Divider,
   List,
   ListItem,
   ListItemText,
@@ -26,8 +24,11 @@ import {
   Edit,
   Delete,
 } from '@mui/icons-material';
+import UserManagement from '../../components/Admin/UserManagement';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Settings: React.FC = () => {
+  const { user } = useAuth();
   const [settings, setSettings] = useState({
     notifications: {
       orderAlerts: true,
@@ -304,6 +305,13 @@ const Settings: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* User Management - Only for Managers */}
+        {user?.role === 'manager' && (
+          <Grid item xs={12}>
+            <UserManagement />
+          </Grid>
+        )}
 
         {/* Save Button */}
         <Grid item xs={12}>

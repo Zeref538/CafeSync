@@ -13,6 +13,7 @@ import Inventory from './pages/Inventory/Inventory';
 import Analytics from './pages/Analytics/Analytics';
 import Settings from './pages/Settings/Settings';
 import Login from './pages/Auth/Login';
+import Signup from './pages/Auth/Signup';
 
 // Station-specific pages
 import FrontCounter from './pages/Stations/FrontCounter';
@@ -31,6 +32,7 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         
         {/* Protected routes with layout */}
         <Route path="/" element={
