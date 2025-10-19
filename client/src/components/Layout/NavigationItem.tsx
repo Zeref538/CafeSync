@@ -46,14 +46,20 @@ const NavigationItem: React.FC<NavigationItemProps> = ({
           mx: 1,
           mb: 0.5,
           borderRadius: 2,
-          backgroundColor: isCurrentPath || isActive ? '#8B4513' : 'transparent',
+          backgroundColor: isCurrentPath || isActive 
+            ? theme.palette.mode === 'dark' 
+              ? '#8B4513' 
+              : theme.palette.primary.main
+            : 'transparent',
           color: isCurrentPath || isActive ? 'white' : 'text.primary',
           '&:hover': {
             backgroundColor: isCurrentPath || isActive 
-              ? '#A0522D' 
+              ? theme.palette.mode === 'dark'
+                ? '#A0522D'
+                : theme.palette.primary.light
               : theme.palette.mode === 'dark' 
                 ? 'rgba(255,255,255,0.08)' 
-                : '#f5f5f5',
+                : 'rgba(107, 68, 35, 0.08)',
           },
           transition: 'all 0.2s ease-in-out',
         }}

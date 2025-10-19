@@ -128,7 +128,7 @@ const Signup: React.FC = () => {
         minHeight: '100vh',
         background: theme.palette.mode === 'dark' 
           ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #3a3a3a 100%)'
-          : 'linear-gradient(135deg, #8B4513 0%, #A0522D 50%, #D2691E 100%)',
+          : 'linear-gradient(135deg, #6B4423 0%, #8B5A3C 50%, #C17D4A 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -156,8 +156,8 @@ const Signup: React.FC = () => {
                   mb: 2,
                 }}
               >
-                <Coffee sx={{ fontSize: 40, color: '#8B4513', mr: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#8B4513' }}>
+                <Coffee sx={{ fontSize: 40, color: theme.palette.primary.main, mr: 1 }} />
+                <Typography variant="h4" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
                   CafeSync
                 </Typography>
               </Box>

@@ -27,24 +27,44 @@ const createAppTheme = (isDarkMode: boolean) => createTheme({
   palette: {
     mode: isDarkMode ? 'dark' : 'light',
     primary: {
-      main: '#8B4513', // Coffee brown
-      light: '#A0522D',
-      dark: '#654321',
+      main: isDarkMode ? '#A0522D' : '#6B4423', // Rich coffee brown
+      light: isDarkMode ? '#C87941' : '#8B5A3C',
+      dark: isDarkMode ? '#654321' : '#4A2F1F',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#D2691E', // Chocolate
-      light: '#DEB887',
-      dark: '#8B4513',
+      main: isDarkMode ? '#D2691E' : '#C17D4A', // Warm caramel
+      light: isDarkMode ? '#DEB887' : '#D4A574',
+      dark: isDarkMode ? '#8B4513' : '#9D5E36',
       contrastText: '#ffffff',
     },
     background: {
-      default: isDarkMode ? '#121212' : '#f5f5f5',
-      paper: isDarkMode ? '#1e1e1e' : '#ffffff',
+      default: isDarkMode ? '#121212' : '#FAF8F5', // Warm off-white
+      paper: isDarkMode ? '#1e1e1e' : '#FFFFFF',
     },
     text: {
-      primary: isDarkMode ? '#ffffff' : '#333333',
-      secondary: isDarkMode ? '#b3b3b3' : '#666666',
+      primary: isDarkMode ? '#ffffff' : '#2C2216', // Dark brown text
+      secondary: isDarkMode ? '#b3b3b3' : '#6B5B4A', // Muted brown
+    },
+    success: {
+      main: isDarkMode ? '#4caf50' : '#2E7D32',
+      light: isDarkMode ? '#81c784' : '#4CAF50',
+      dark: isDarkMode ? '#388e3c' : '#1B5E20',
+    },
+    info: {
+      main: isDarkMode ? '#2196f3' : '#0277BD',
+      light: isDarkMode ? '#64b5f6' : '#0288D1',
+      dark: isDarkMode ? '#1976d2' : '#01579B',
+    },
+    warning: {
+      main: isDarkMode ? '#ff9800' : '#E65100',
+      light: isDarkMode ? '#ffb74d' : '#EF6C00',
+      dark: isDarkMode ? '#f57c00' : '#BF360C',
+    },
+    error: {
+      main: isDarkMode ? '#f44336' : '#C62828',
+      light: isDarkMode ? '#e57373' : '#D32F2F',
+      dark: isDarkMode ? '#d32f2f' : '#B71C1C',
     },
   },
   typography: {

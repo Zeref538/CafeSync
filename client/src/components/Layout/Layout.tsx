@@ -145,7 +145,9 @@ const Layout: React.FC = () => {
       <Box
         sx={{
           p: 3,
-          backgroundColor: '#8B4513',
+          background: theme.palette.mode === 'dark'
+            ? 'linear-gradient(135deg, #654321 0%, #8B4513 100%)'
+            : 'linear-gradient(135deg, #6B4423 0%, #8B5A3C 100%)',
           color: 'white',
           textAlign: 'center',
         }}
