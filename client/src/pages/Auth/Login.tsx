@@ -14,6 +14,8 @@ import {
   Divider,
   Chip,
   useTheme,
+  Tab,
+  Tabs,
 } from '@mui/material';
 import {
   Visibility,
@@ -22,15 +24,31 @@ import {
   Lock,
   Storefront,
   Coffee,
+  Google,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
+  return (
+    <div role="tabpanel" hidden={value !== index}>
+      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    </div>
+  );
+};
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const [tabValue, setTabValue] = useState(0);
+  const { login, loginWithGoogle, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -69,6 +87,14 @@ const Login: React.FC = () => {
     if (credentials) {
       setEmail(credentials.email);
       setPassword(credentials.password);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    const success = await loginWithGoogle();
+    if (!success) {
+      setError('Google sign-in failed or access denied.');
     }
   };
 
@@ -126,70 +152,112 @@ const Login: React.FC = () => {
               </Alert>
             )}
 
-            {/* Login Form */}
-            <Box component="form" onSubmit={handleSubmit}>
-              <TextField
-                fullWidth
-                label="Email Address"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                margin="normal"
-                required
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Email color="action" />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ mb: 2 }}
-              />
+            {/* Employee Authentication Notice */}
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                🔒 Employee-Only Access
+              </Typography>
+              <Typography variant="caption">
+                Only authorized employees can sign in. Contact your manager if you need access.
+              </Typography>
+            </Alert>
 
-              <TextField
-                fullWidth
-                label="Password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                margin="normal"
-                required
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Lock color="action" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setShowPassword(!showPassword)}
-                        edge="end"
-                      >
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ mb: 3 }}
-              />
+            {/* Authentication Tabs */}
+            <Tabs 
+              value={tabValue} 
+              onChange={(e, newValue) => setTabValue(newValue)}
+              variant="fullWidth"
+              sx={{ mb: 2 }}
+            >
+              <Tab label="Google" icon={<Google />} iconPosition="start" />
+              <Tab label="Email & Password" icon={<Lock />} iconPosition="start" />
+            </Tabs>
 
+            {/* Tab 1: Google Sign-in */}
+            <TabPanel value={tabValue} index={0}>
               <Button
-                type="submit"
                 fullWidth
                 variant="contained"
                 size="large"
+                startIcon={<Google />}
                 disabled={isLoading}
+                onClick={handleGoogleSignIn}
                 sx={{
                   py: 1.5,
-                  fontSize: '1.1rem',
-                  fontWeight: 600,
-                  borderRadius: 2,
+                  backgroundColor: '#4285f4',
+                  '&:hover': {
+                    backgroundColor: '#357ae8',
+                  },
                 }}
               >
-                {isLoading ? 'Signing In...' : 'Sign In'}
+                {isLoading ? 'Signing In...' : 'Sign in with Google'}
               </Button>
-            </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
+                Use your work Google account
+              </Typography>
+            </TabPanel>
+
+            {/* Tab 2: Password Login (Legacy/Demo) */}
+            <TabPanel value={tabValue} index={1}>
+              <Box component="form" onSubmit={handleSubmit}>
+                <TextField
+                  fullWidth
+                  label="Email Address"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  margin="normal"
+                  required
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Email color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ mb: 2 }}
+                />
+
+                <TextField
+                  fullWidth
+                  label="Password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  margin="normal"
+                  required
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Lock color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword(!showPassword)}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ mb: 3 }}
+                />
+
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  disabled={isLoading}
+                  sx={{ py: 1.5 }}
+                >
+                  {isLoading ? 'Signing In...' : 'Sign In'}
+                </Button>
+              </Box>
+            </TabPanel>
 
             <Divider sx={{ my: 3 }}>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
@@ -225,23 +293,6 @@ const Login: React.FC = () => {
               </Button>
             </Box>
 
-            <Divider sx={{ my: 3 }}>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                New to CafeSync?
-              </Typography>
-            </Divider>
-
-            <Box sx={{ textAlign: 'center' }}>
-              <Button
-                component={Link}
-                to="/signup"
-                variant="outlined"
-                fullWidth
-                sx={{ textTransform: 'none' }}
-              >
-                Create New Account
-              </Button>
-            </Box>
 
             {/* Features */}
             <Box sx={{ mt: 4, textAlign: 'center' }}>

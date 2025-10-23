@@ -25,6 +25,7 @@ import {
   Delete,
 } from '@mui/icons-material';
 import UserManagement from '../../components/Admin/UserManagement';
+import EmployeeInvitation from '../../components/Admin/EmployeeInvitation';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Settings: React.FC = () => {
@@ -306,11 +307,16 @@ const Settings: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* User Management - Only for Managers */}
+        {/* Employee Invitation & Management - Only for Managers */}
         {user?.role === 'manager' && (
-          <Grid item xs={12}>
-            <UserManagement />
-          </Grid>
+          <>
+            <Grid item xs={12}>
+              <EmployeeInvitation />
+            </Grid>
+            <Grid item xs={12}>
+              <UserManagement />
+            </Grid>
+          </>
         )}
 
         {/* Save Button */}

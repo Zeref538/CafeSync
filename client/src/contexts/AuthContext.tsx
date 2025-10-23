@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  signOut,
+  GoogleAuthProvider,
+  User as FirebaseUser 
+} from 'firebase/auth';
+import { auth } from '../firebase';
+import { 
+  isEmployeeWhitelisted, 
+  getEmployeeByEmail, 
+  initializeDemoEmployees 
+} from '../utils/employeeUtils';
 
 interface User {
   id: string;
@@ -23,6 +36,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<boolean>;
   signup: (data: SignupData) => Promise<boolean>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
@@ -92,29 +106,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Check for existing session on mount
   useEffect(() => {
-    const checkAuth = async () => {
+    // Initialize demo employees
+    initializeDemoEmployees();
+    
+    // Listen for Firebase auth state changes
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       try {
-        // Initialize demo users if needed
-        initializeDemoUsers();
-        
-        const token = localStorage.getItem('cafesync_token');
-        if (token) {
-          const userData = JSON.parse(localStorage.getItem('cafesync_user') || 'null');
-          if (userData) {
+        if (firebaseUser && firebaseUser.email) {
+          // Check if user is whitelisted employee
+          if (!isEmployeeWhitelisted(firebaseUser.email)) {
+            toast.error('Access denied. You are not an authorized employee.');
+            await signOut(auth);
+            setUser(null);
+            setIsLoading(false);
+            return;
+          }
+          
+          // Get employee data
+          const employeeData = getEmployeeByEmail(firebaseUser.email);
+          if (employeeData) {
+            const userData: User = {
+              id: firebaseUser.uid,
+              name: employeeData.name || firebaseUser.displayName || 'Employee',
+              email: firebaseUser.email,
+              role: employeeData.role,
+              station: employeeData.station,
+              permissions: employeeData.permissions,
+            };
+            
             setUser(userData);
+            localStorage.setItem('cafesync_user', JSON.stringify(userData));
+          }
+        } else {
+          // No Firebase user, check for legacy session
+          const token = localStorage.getItem('cafesync_token');
+          if (token) {
+            const userData = JSON.parse(localStorage.getItem('cafesync_user') || 'null');
+            if (userData) {
+              setUser(userData);
+            }
+          } else {
+            setUser(null);
           }
         }
       } catch (error) {
         console.error('Auth check failed:', error);
-        localStorage.removeItem('cafesync_token');
-        localStorage.removeItem('cafesync_user');
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
-    };
-
-    checkAuth();
-  }, [initializeDemoUsers]);
+    });
+    
+    return () => unsubscribe();
+  }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
@@ -235,7 +279,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return stations[role];
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     setUser(null);
     localStorage.removeItem('cafesync_token');
     localStorage.removeItem('cafesync_user');
@@ -251,11 +300,86 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Google Sign-in
+  const loginWithGoogle = async (): Promise<boolean> => {
+    setIsLoading(true);
+    
+    try {
+      // Create Google provider
+      const googleProvider = new GoogleAuthProvider();
+      googleProvider.setCustomParameters({
+        prompt: 'select_account',
+      });
+      
+      const result = await signInWithPopup(auth, googleProvider);
+      const firebaseUser = result.user;
+      
+      if (!firebaseUser || !firebaseUser.email) {
+        toast.error('Google sign-in failed. Please try again.');
+        return false;
+      }
+      
+      // Check if user is whitelisted employee
+      if (!isEmployeeWhitelisted(firebaseUser.email)) {
+        toast.error('Access denied. You are not an authorized employee. Please contact your manager.');
+        await signOut(auth);
+        return false;
+      }
+      
+      // Get employee data
+      const employeeData = getEmployeeByEmail(firebaseUser.email);
+      if (!employeeData) {
+        toast.error('Employee record not found.');
+        await signOut(auth);
+        return false;
+      }
+      
+      const userData: User = {
+        id: firebaseUser.uid,
+        name: employeeData.name || firebaseUser.displayName || 'Employee',
+        email: firebaseUser.email,
+        role: employeeData.role,
+        station: employeeData.station,
+        permissions: employeeData.permissions,
+      };
+      
+      setUser(userData);
+      localStorage.setItem('cafesync_user', JSON.stringify(userData));
+      
+      toast.success(`Welcome back, ${userData.name}!`);
+      
+      // Redirect based on role/station
+      if (userData.station) {
+        navigate(`/station/${userData.station}`);
+      } else {
+        navigate('/dashboard');
+      }
+      
+      return true;
+    } catch (error: any) {
+      console.error('Google sign-in failed:', error);
+      
+      if (error.code === 'auth/popup-closed-by-user') {
+        toast.error('Sign-in cancelled');
+      } else if (error.code === 'auth/popup-blocked') {
+        toast.error('Pop-up blocked. Please allow pop-ups for this site.');
+      } else {
+        toast.error('Google sign-in failed. Please try again.');
+      }
+      
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
     isLoading,
     login,
+    loginWithGoogle,
     signup,
     logout,
     updateUser,

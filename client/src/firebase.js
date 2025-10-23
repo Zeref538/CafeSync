@@ -1,13 +1,10 @@
-// Import the functions you need from the SDKs you need
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// Import the functions you need from the SDKs you need (v9+ modular syntax)
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-
-import firebase from 'firebase/app';
-import 'firebase/firestore';
-
 const firebaseConfig = {
     apiKey: process.env.REACT_APP_API_KEY,
     authDomain: process.env.REACT_APP_AUTH_DOMAIN,
@@ -18,8 +15,36 @@ const firebaseConfig = {
     measurementId: process.env.REACT_APP_MEASUREMENT_ID
 };
 
-firebase.initializeApp(firebaseConfig);
+// Initialize Firebase
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
-const firestore = firebase.firestore();
-export { firestore };
+// Initialize Firebase services
+const auth = getAuth(app);
+const firestore = getFirestore(app);
+const storage = getStorage(app);
+
+// Connect to emulators in development
+if (process.env.REACT_APP_USE_FIREBASE_EMULATOR === 'true' && process.env.NODE_ENV === 'development') {
+    console.log('🔧 Connecting to Firebase Emulators...');
+    
+    try {
+        connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+        connectFirestoreEmulator(firestore, 'localhost', 8080);
+        connectStorageEmulator(storage, 'localhost', 9199);
+        
+        console.log('✅ Connected to Firebase Emulators');
+        console.log('   - Auth: http://localhost:9099');
+        console.log('   - Firestore: http://localhost:8080');
+        console.log('   - Storage: http://localhost:9199');
+        console.log('   - UI: http://localhost:4000');
+    } catch (error) {
+        console.warn('⚠️ Emulator connection failed. Using production Firebase.');
+    }
+}
+
+// Configure auth settings
+auth.useDeviceLanguage();
+
+export { auth, firestore, storage, app };
+export default app;
 
