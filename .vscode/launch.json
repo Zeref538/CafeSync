@@ -1,0 +1,76 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Start All Services",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/concurrently",
+      "args": [
+        "\"npm run server\"",
+        "\"npm run client\"",
+        "\"npm run ai\""
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "Start Backend Server",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/server/index.js",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5000"
+      },
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "Start React Client",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/client/node_modules/.bin/react-scripts",
+      "args": [
+        "start"
+      ],
+      "cwd": "${workspaceFolder}/client",
+      "console": "integratedTerminal",
+      "env": {
+        "BROWSER": "none"
+      },
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "Start AI Services",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/ai-services/app.py",
+      "cwd": "${workspaceFolder}/ai-services",
+      "console": "integratedTerminal",
+      "env": {
+        "FLASK_ENV": "development",
+        "AI_SERVICE_PORT": "8000"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Launch All Services",
+      "configurations": [
+        "Start Backend Server",
+        "Start React Client",
+        "Start AI Services"
+      ],
+      "stopAll": true
+    }
+  ]
+}
