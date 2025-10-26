@@ -98,6 +98,12 @@ io.on('connection', (socket) => {
     console.log('Analytics update broadcasted:', data);
   });
 
+  // Handle menu updates
+  socket.on('menu-update', (data) => {
+    socket.broadcast.emit('menu-update', data);
+    console.log('Menu update broadcasted:', data);
+  });
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });

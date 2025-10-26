@@ -19,6 +19,7 @@ import {
   Refresh,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
+import { notify } from '../../utils/notifications';
 
 interface KitchenOrder {
   id: string;
@@ -86,11 +87,21 @@ const Kitchen: React.FC = () => {
       socket.on('order-update', (data) => {
         console.log('Kitchen received order update:', data);
         
-        // Handle order updates for kitchen
+        // Show notification for new orders or status changes
         setOrders(prev => {
-          // Check if order already exists
           const existingIndex = prev.findIndex(order => order.id === data.id);
+          const existingOrder = prev[existingIndex];
           
+          // Handle status changes
+          if (existingOrder && existingOrder.status !== data.status) {
+            if (data.status === 'ready') {
+              notify.success(`Order #${data.orderNumber} is ready!`, true);
+            } else if (data.status === 'preparing' && existingOrder.status === 'pending') {
+              notify.info(`Order #${data.orderNumber} is being prepared`, false);
+            }
+          }
+          
+          // Check if order already exists
           if (existingIndex >= 0) {
             // Update existing order
             const updated = [...prev];
@@ -104,6 +115,10 @@ const Kitchen: React.FC = () => {
           } else {
             // Add new order only if it's pending/preparing/ready
             if (data.status === 'pending' || data.status === 'preparing' || data.status === 'ready') {
+              // Notify about new pending orders
+              if (data.status === 'pending') {
+                notify.info(`New order #${data.orderNumber} received`, true);
+              }
               return [...prev, data];
             }
             return prev;
@@ -159,6 +174,12 @@ const Kitchen: React.FC = () => {
           Math.floor((Date.now() - new Date(orders.find(o => o.id === orderId)?.createdAt || Date.now()).getTime()) / 60000) : 
           null
       });
+
+      // Show notification when order is ready
+      if (newStatus === 'ready') {
+        const order = orders.find(o => o.id === orderId);
+        notify.success(`Order #${order?.orderNumber} is ready!`, true);
+      }
 
       console.log(`Order ${orderId} status updated to ${newStatus}`);
     } catch (error) {

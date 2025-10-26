@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Box, useTheme } from '@mui/material';
+import { Toaster } from 'react-hot-toast';
 
 // Layout components
 import Layout from './components/Layout/Layout';
@@ -57,6 +58,7 @@ function App() {
         {/* Catch all route */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
+      <Toaster position="top-right" />
     </Box>
   );
 }

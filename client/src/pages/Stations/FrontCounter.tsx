@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -26,6 +26,7 @@ import {
   Divider,
   Paper,
   InputAdornment,
+  CircularProgress,
 } from '@mui/material';
 import {
   Search,
@@ -36,8 +37,27 @@ import {
 import { useSocket } from '../../contexts/SocketContext';
 import { useAuth } from '../../contexts/AuthContext';
 
+interface SizePrice {
+  size: string;
+  price: number; // Keep as number for display purposes
+}
+
+interface MenuItem {
+  id: number;
+  name: string;
+  price: number;
+  category: string;
+  description?: string;
+  imageUrl?: string;
+  isAvailable: boolean;
+  preparationTime?: number;
+  ingredients?: string[];
+  allergens?: string[];
+  sizes?: SizePrice[];
+}
+
 const FrontCounter: React.FC = () => {
-  const { joinStation, emitOrderUpdate } = useSocket();
+  const { socket, joinStation, emitOrderUpdate } = useSocket();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -52,21 +72,47 @@ const FrontCounter: React.FC = () => {
   const [selectedMilk, setSelectedMilk] = useState<string>('Whole');
   const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
   const [customNotes, setCustomNotes] = useState<string>('');
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Mock menu items
-  const menuItems = [
-    { id: 1, name: 'Latte', price: 4.50, category: 'Hot Drinks' },
-    { id: 2, name: 'Cappuccino', price: 4.25, category: 'Hot Drinks' },
-    { id: 3, name: 'Americano', price: 3.50, category: 'Hot Drinks' },
-    { id: 4, name: 'Espresso', price: 2.75, category: 'Hot Drinks' },
-    { id: 5, name: 'Iced Coffee', price: 3.75, category: 'Cold Drinks' },
-    { id: 6, name: 'Frappuccino', price: 5.25, category: 'Cold Drinks' },
-    { id: 7, name: 'Croissant', price: 3.00, category: 'Pastries' },
-    { id: 8, name: 'Muffin', price: 2.50, category: 'Pastries' },
-    { id: 9, name: 'Bagel', price: 2.75, category: 'Pastries' },
-  ];
+  // Load menu items from server
+  const loadMenuItems = async () => {
+    try {
+      setLoading(true);
+      // Always use Firebase Functions URL
+      const apiUrl = 'https://us-central1-cafesync-3b25a.cloudfunctions.net/api/menu';
+        
+      const response = await fetch(apiUrl);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Front Counter - Loaded menu items:', data);
+        console.log('Front Counter - First menu item:', data.data?.[0]);
+        console.log('Front Counter - First menu item sizes:', data.data?.[0]?.sizes);
+        setMenuItems(data.data || []);
+      } else {
+        // No fallback - start with empty menu
+        console.error('Front Counter - Failed to load menu items');
+        setMenuItems([]);
+      }
+    } catch (error) {
+      console.error('Error loading menu items:', error);
+      // No fallback - start with empty menu
+      setMenuItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load menu items on component mount
+  useEffect(() => {
+    loadMenuItems();
+  }, []);
+
+  // Get unique categories from menu items
+  const availableCategories = ['All', ...Array.from(new Set(menuItems.map(item => item.category)))];
 
   const filteredItems = menuItems
+    .filter(item => item.isAvailable) // Only show available items
     .filter(item =>
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.category.toLowerCase().includes(searchTerm.toLowerCase())
@@ -109,7 +155,14 @@ const FrontCounter: React.FC = () => {
 
   const openCustomization = (item: any) => {
     setSelectedItem(item);
-    setSelectedSize('Regular');
+    
+    // Set default size based on available sizes
+    if (item.sizes && item.sizes.length > 0) {
+      setSelectedSize(item.sizes[0].size);
+    } else {
+      setSelectedSize('Regular');
+    }
+    
     setSelectedMilk('Whole');
     setSelectedExtras([]);
     setCustomNotes('');
@@ -122,11 +175,21 @@ const FrontCounter: React.FC = () => {
   };
 
   const calculateUnitPrice = (base: number) => {
-    let price = base;
-    if (selectedSize === 'Large') price += 1.0;
-    if (selectedMilk === 'Almond' || selectedMilk === 'Oat') price += 0.5;
-    price += selectedExtras.length * 0.5;
-    return price;
+    if (!selectedItem) return base;
+    
+    // Find the selected size price from the menu item
+    let sizePrice = base;
+    if (selectedItem.sizes && selectedItem.sizes.length > 0) {
+      const selectedSizeOption = selectedItem.sizes.find((size: SizePrice) => size.size === selectedSize);
+      if (selectedSizeOption) {
+        sizePrice = selectedSizeOption.price;
+      }
+    }
+    
+    // Add milk and extras pricing
+    if (selectedMilk === 'Almond' || selectedMilk === 'Oat') sizePrice += 0.5;
+    sizePrice += selectedExtras.length * 0.5;
+    return sizePrice;
   };
 
   const addCustomizedToOrder = () => {
@@ -243,6 +306,23 @@ const FrontCounter: React.FC = () => {
     joinStation('front-counter');
   }, [joinStation]);
 
+  // Listen for menu updates from Menu Management
+  React.useEffect(() => {
+    if (socket) {
+      socket.on('menu-update', (data: any) => {
+        console.log('Front Counter received menu update:', data);
+        // Reload menu items when menu is updated
+        loadMenuItems();
+      });
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('menu-update');
+      }
+    };
+  }, [socket]);
+
   return (
     <Box>
       <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
@@ -267,10 +347,11 @@ const FrontCounter: React.FC = () => {
                     label="Category"
                     onChange={(e) => setSelectedCategory(e.target.value)}
                   >
-                    <MenuItem value="All">All</MenuItem>
-                    <MenuItem value="Hot Drinks">Hot Drinks</MenuItem>
-                    <MenuItem value="Cold Drinks">Cold Drinks</MenuItem>
-                    <MenuItem value="Pastries">Pastries</MenuItem>
+                    {availableCategories.map((category) => (
+                      <MenuItem key={category} value={category}>
+                        {category}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
                 <TextField
@@ -289,33 +370,39 @@ const FrontCounter: React.FC = () => {
                 />
               </Box>
 
-              <Grid container spacing={2}>
-                {filteredItems.map((item) => (
-                  <Grid item xs={12} sm={6} md={3} key={item.id}>
-                    <Paper
-                      sx={{
-                        p: 1.5,
-                        cursor: 'pointer',
-                        border: '1px solid #e0e0e0',
-                        borderRadius: 2,
-                        '&:hover': {
-                          borderColor: '#8B4513',
-                          backgroundColor: '#f5f5f5',
-                        },
-                      }}
-                      onClick={() => openCustomization(item)}
-                    >
-                      <Box sx={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#eeeeee', borderRadius: 1, mb: 1 }} />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                        {item.name}
-                      </Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#8B4513' }}>
-                        ₱{item.price.toFixed(2)}
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                ))}
-              </Grid>
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <Grid container spacing={2}>
+                  {filteredItems.map((item) => (
+                    <Grid item xs={12} sm={6} md={3} key={item.id}>
+                      <Paper
+                        sx={{
+                          p: 1.5,
+                          cursor: 'pointer',
+                          border: '1px solid #e0e0e0',
+                          borderRadius: 2,
+                          '&:hover': {
+                            borderColor: '#8B4513',
+                            backgroundColor: '#f5f5f5',
+                          },
+                        }}
+                        onClick={() => openCustomization(item)}
+                      >
+                        <Box sx={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#eeeeee', borderRadius: 1, mb: 1 }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                          {item.name}
+                        </Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#8B4513' }}>
+                          ₱{item.price.toFixed(2)}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -466,9 +553,15 @@ const FrontCounter: React.FC = () => {
               <FormControl fullWidth size="small">
                 <InputLabel id="size-label">Size</InputLabel>
                 <Select labelId="size-label" label="Size" value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}>
-                  <MenuItem value="Small">Small</MenuItem>
-                  <MenuItem value="Regular">Regular</MenuItem>
-                  <MenuItem value="Large">Large (+₱1.00)</MenuItem>
+                  {selectedItem?.sizes && selectedItem.sizes.length > 0 ? (
+                    selectedItem.sizes.map((size: SizePrice) => (
+                      <MenuItem key={size.size} value={size.size}>
+                        {size.size} - ₱{size.price.toFixed(2)}
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem value="Regular">Regular - ₱{selectedItem?.price.toFixed(2) || '0.00'}</MenuItem>
+                  )}
                 </Select>
               </FormControl>
             </Grid>

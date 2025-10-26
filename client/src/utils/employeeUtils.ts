@@ -120,43 +120,13 @@ export const updateEmployeeStatus = (
   }
 };
 
-// Initialize with demo employees
+// Initialize with essential accounts only
 export const initializeDemoEmployees = (): void => {
   const employees = getAllEmployees();
   
-  // Always ensure demo accounts and your Google accounts exist
-  const demoEmployees: Record<string, EmployeeRecord> = {
-    'manager@cafesync.com': {
-      email: 'manager@cafesync.com',
-      name: 'Sarah Johnson',
-      role: 'manager',
-      station: 'management',
-      permissions: ['all'],
-      invitedBy: 'system',
-      invitedAt: new Date().toISOString(),
-      status: 'active',
-    },
-    'barista@cafesync.com': {
-      email: 'barista@cafesync.com',
-      name: 'Mike Chen',
-      role: 'barista',
-      station: 'front-counter',
-      permissions: ['orders', 'inventory', 'loyalty'],
-      invitedBy: 'manager@cafesync.com',
-      invitedAt: new Date().toISOString(),
-      status: 'active',
-    },
-    'kitchen@cafesync.com': {
-      email: 'kitchen@cafesync.com',
-      name: 'Alex Rodriguez',
-      role: 'kitchen',
-      station: 'kitchen',
-      permissions: ['orders', 'inventory'],
-      invitedBy: 'manager@cafesync.com',
-      invitedAt: new Date().toISOString(),
-      status: 'active',
-    },
-    // Add your Google accounts
+  // Add your Google accounts AND demo accounts
+  const essentialEmployees: Record<string, EmployeeRecord> = {
+    // Your Google accounts
     'martinezjandrei8425@gmail.com': {
       email: 'martinezjandrei8425@gmail.com',
       name: 'John Andrei Martinez',
@@ -177,10 +147,41 @@ export const initializeDemoEmployees = (): void => {
       invitedAt: new Date().toISOString(),
       status: 'active',
     },
+    // Demo accounts for testing
+    'manager@cafesync.com': {
+      email: 'manager@cafesync.com',
+      name: 'Demo Manager',
+      role: 'manager',
+      station: 'management',
+      permissions: ['all'],
+      invitedBy: 'system',
+      invitedAt: new Date().toISOString(),
+      status: 'active',
+    },
+    'barista@cafesync.com': {
+      email: 'barista@cafesync.com',
+      name: 'Demo Barista',
+      role: 'barista',
+      station: 'front-counter',
+      permissions: ['orders', 'inventory', 'loyalty'],
+      invitedBy: 'system',
+      invitedAt: new Date().toISOString(),
+      status: 'active',
+    },
+    'kitchen@cafesync.com': {
+      email: 'kitchen@cafesync.com',
+      name: 'Demo Kitchen Staff',
+      role: 'kitchen',
+      station: 'kitchen',
+      permissions: ['orders', 'inventory'],
+      invitedBy: 'system',
+      invitedAt: new Date().toISOString(),
+      status: 'active',
+    },
   };
   
   // Merge with existing employees (don't overwrite)
-  const mergedEmployees = { ...employees, ...demoEmployees };
+  const mergedEmployees = { ...employees, ...essentialEmployees };
   saveEmployees(mergedEmployees);
 };
 
@@ -203,5 +204,27 @@ const getStationForRole = (role: string): string | undefined => {
     kitchen: 'kitchen',
   };
   return stations[role];
+};
+
+// Legacy localStorage functions for backward compatibility (deprecated)
+export const getAllEmployeesLegacy = (): Record<string, EmployeeRecord> => {
+  try {
+    const data = localStorage.getItem('cafesync_employees');
+    return data ? JSON.parse(data) : {};
+  } catch (error) {
+    console.error('Error loading employees from localStorage:', error);
+    return {};
+  }
+};
+
+export const isEmployeeWhitelistedLegacy = (email: string): boolean => {
+  const employees = getAllEmployeesLegacy();
+  const employee = employees[email.toLowerCase()];
+  return employee && employee.status === 'active';
+};
+
+export const getEmployeeByEmailLegacy = (email: string): EmployeeRecord | null => {
+  const employees = getAllEmployeesLegacy();
+  return employees[email.toLowerCase()] || null;
 };
 

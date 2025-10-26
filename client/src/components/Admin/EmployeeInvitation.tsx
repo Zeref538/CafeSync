@@ -37,7 +37,9 @@ import {
   removeEmployee,
   updateEmployeeStatus,
   EmployeeRecord,
-} from '../../utils/employeeUtils';
+} from '../../utils/employeeUtilsFirestore';
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 
 const EmployeeInvitation: React.FC = () => {
@@ -50,42 +52,94 @@ const EmployeeInvitation: React.FC = () => {
   // Form state
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<'manager' | 'barista' | 'cashier' | 'kitchen'>('barista');
 
-  const loadEmployees = () => {
-    const employeeData = getAllEmployees();
-    const employeeList = Object.values(employeeData);
-    setEmployees(employeeList);
+  const loadEmployees = async () => {
+    try {
+      const employeeData = await getAllEmployees();
+      const employeeList = Object.values(employeeData);
+      setEmployees(employeeList);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      toast.error('Failed to load employees');
+    }
   };
 
   useEffect(() => {
     loadEmployees();
   }, []);
 
-  const handleInviteEmployee = () => {
-    if (!newEmail || !newName || !newRole) {
+  // Debug function to check Firebase Auth status
+  const checkFirebaseAuthStatus = () => {
+    console.log('Firebase Auth Status:');
+    console.log('- Auth instance:', auth);
+    console.log('- Current user:', auth.currentUser);
+    console.log('- App:', auth.app);
+    console.log('- Config:', auth.config);
+  };
+
+  const handleInviteEmployee = async () => {
+    if (!newEmail || !newName || !newPassword || !newRole) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    const success = addEmployee(newEmail, newName, newRole, user?.email || 'system');
-    
-    if (success) {
-      toast.success(`${newName} has been added as an employee!`);
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      return;
+    }
+
+    try {
+      // Debug Firebase Auth status
+      checkFirebaseAuthStatus();
+      
+      // First create Firebase account
+      console.log('Creating Firebase account for:', newEmail);
+      const userCredential = await createUserWithEmailAndPassword(auth, newEmail, newPassword);
+      console.log('Firebase account created successfully:', userCredential.user.uid);
+      
+      // Then add to employee whitelist (async)
+      const success = await addEmployee(newEmail, newName, newRole, user?.email || 'system');
+      
+      if (!success) {
+        // If whitelist addition fails, we should clean up the Firebase account
+        console.error('Failed to add to whitelist, cleaning up Firebase account');
+        toast.error('Failed to add employee to whitelist. Please try again.');
+        return;
+      }
+
+      // Sign out the newly created user (since we don't want to stay logged in as them)
+      await signOut(auth);
+      
+      toast.success(`${newName} has been added as an employee! They can now sign in with their email and password.`);
       setInviteDialog(false);
       setNewEmail('');
       setNewName('');
+      setNewPassword('');
       setNewRole('barista');
       loadEmployees();
-    } else {
-      toast.error('Failed to add employee. Email may already exist.');
+    } catch (error: any) {
+      console.error('Error creating employee account:', error);
+      
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error('An account with this email already exists.');
+      } else if (error.code === 'auth/invalid-email') {
+        toast.error('Invalid email address.');
+      } else if (error.code === 'auth/weak-password') {
+        toast.error('Password should be at least 6 characters.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        toast.error('Email/password authentication is not enabled. Please contact the administrator.');
+      } else {
+        toast.error(`Failed to create employee account: ${error.message}`);
+      }
     }
   };
 
-  const handleDeleteEmployee = () => {
+  const handleDeleteEmployee = async () => {
     if (!selectedEmployee) return;
 
-    const success = removeEmployee(selectedEmployee);
+    const success = await removeEmployee(selectedEmployee);
     
     if (success) {
       toast.success('Employee removed successfully');
@@ -97,9 +151,9 @@ const EmployeeInvitation: React.FC = () => {
     }
   };
 
-  const handleToggleStatus = (email: string, currentStatus: string) => {
+  const handleToggleStatus = async (email: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
-    const success = updateEmployeeStatus(email, newStatus as 'active' | 'suspended');
+    const success = await updateEmployeeStatus(email, newStatus as 'active' | 'suspended');
     
     if (success) {
       toast.success(`Employee ${newStatus === 'active' ? 'activated' : 'suspended'}`);
@@ -294,6 +348,16 @@ const EmployeeInvitation: React.FC = () => {
               />
               <TextField
                 fullWidth
+                label="Password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                placeholder="Minimum 6 characters"
+                helperText="Employee will use this password to sign in"
+              />
+              <TextField
+                fullWidth
                 select
                 label="Role"
                 value={newRole}
@@ -308,7 +372,7 @@ const EmployeeInvitation: React.FC = () => {
               </TextField>
               <Alert severity="info">
                 <Typography variant="caption">
-                  The employee will be able to sign in using Google or a passwordless email link.
+                  The employee will be able to sign in using their email and password, or Google authentication.
                 </Typography>
               </Alert>
             </Box>

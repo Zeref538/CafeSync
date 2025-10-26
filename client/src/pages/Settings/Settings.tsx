@@ -26,7 +26,9 @@ import {
 } from '@mui/icons-material';
 import UserManagement from '../../components/Admin/UserManagement';
 import EmployeeInvitation from '../../components/Admin/EmployeeInvitation';
+import AuthDebugger from '../../components/Admin/AuthDebugger';
 import { useAuth } from '../../contexts/AuthContext';
+import { notify } from '../../utils/notifications';
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
@@ -36,11 +38,12 @@ const Settings: React.FC = () => {
       inventoryAlerts: true,
       lowStockWarnings: true,
       weatherUpdates: false,
+      soundEnabled: true,
     },
     business: {
       storeName: 'CafeSync Coffee',
-      storeAddress: '123 Main Street, City, State 12345',
-      storePhone: '+1 (555) 123-4567',
+      storeAddress: '14 Kumintang Street, Caloocan City, Philippines',
+      storePhone: '+63 (2) 123-4567',
       storeEmail: 'info@cafesync.com',
       operatingHours: '6:00 AM - 10:00 PM',
     },
@@ -63,8 +66,8 @@ const Settings: React.FC = () => {
   };
 
   const handleSave = () => {
-    // In a real app, this would save to the backend
-    console.log('Settings saved:', settings);
+    localStorage.setItem('cafesync_settings', JSON.stringify(settings));
+    notify.success('Settings saved successfully!');
   };
 
   return (
@@ -132,6 +135,19 @@ const Settings: React.FC = () => {
                     <Switch
                       checked={settings.notifications.weatherUpdates}
                       onChange={(e) => handleSettingChange('notifications', 'weatherUpdates', e.target.checked)}
+                    />
+                  </ListItemSecondaryAction>
+                </ListItem>
+                
+                <ListItem sx={{ px: 0 }}>
+                  <ListItemText
+                    primary="Sound Notifications"
+                    secondary="Play sound for alerts and notifications"
+                  />
+                  <ListItemSecondaryAction>
+                    <Switch
+                      checked={settings.notifications.soundEnabled}
+                      onChange={(e) => handleSettingChange('notifications', 'soundEnabled', e.target.checked)}
                     />
                   </ListItemSecondaryAction>
                 </ListItem>
@@ -257,52 +273,11 @@ const Settings: React.FC = () => {
                 User Management
               </Typography>
               
-              <List sx={{ p: 0 }}>
-                <ListItem sx={{ px: 0 }}>
-                  <ListItemText
-                    primary="Sarah Johnson"
-                    secondary="Manager • sarah.johnson@cafesync.com"
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton size="small">
-                      <Edit />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-                
-                <ListItem sx={{ px: 0 }}>
-                  <ListItemText
-                    primary="Mike Chen"
-                    secondary="Barista • mike.chen@cafesync.com"
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton size="small">
-                      <Edit />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-                
-                <ListItem sx={{ px: 0 }}>
-                  <ListItemText
-                    primary="Alex Rodriguez"
-                    secondary="Kitchen Staff • alex.rodriguez@cafesync.com"
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton size="small" color="error">
-                      <Delete />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-              </List>
-              
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<Person />}
-                sx={{ mt: 2, textTransform: 'none' }}
-              >
-                Add New User
-              </Button>
+              <Alert severity="info">
+                <Typography variant="body2">
+                  Use the Employee Management section below to invite and manage employees.
+                </Typography>
+              </Alert>
             </CardContent>
           </Card>
         </Grid>
@@ -310,6 +285,9 @@ const Settings: React.FC = () => {
         {/* Employee Invitation & Management - Only for Managers */}
         {user?.role === 'manager' && (
           <>
+            <Grid item xs={12}>
+              <AuthDebugger />
+            </Grid>
             <Grid item xs={12}>
               <EmployeeInvitation />
             </Grid>

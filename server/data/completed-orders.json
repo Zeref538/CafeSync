@@ -170,5 +170,476 @@
       "paymentMethod": "cash",
       "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
     }
+  },
+  {
+    "id": "794e8d59-2b92-4cda-a19a-df4a749a335c",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": 1,
+        "name": "Latte",
+        "basePrice": 4.5,
+        "unitPrice": 5,
+        "price": 5,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [
+            "Caramel Syrup"
+          ],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3",
+    "totalAmount": 5,
+    "estimatedPrepTime": 5,
+    "priority": "normal",
+    "createdAt": "2025-10-26T07:31:50.047Z",
+    "updatedAt": "2025-10-26T07:31:52.771Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T07:31:52.771Z",
+    "storedAt": "2025-10-26T07:31:52.771Z",
+    "analysisData": {
+      "totalPrepTime": 0.0454,
+      "orderValue": 5,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
+    }
+  },
+  {
+    "id": "774db48c-6c7a-4177-849d-91982463b3e9",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761470596097",
+        "name": "123",
+        "basePrice": 23,
+        "unitPrice": 24,
+        "price": 24,
+        "quantity": 4,
+        "customizations": {
+          "size": "Large",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3",
+    "totalAmount": 96,
+    "estimatedPrepTime": 3,
+    "priority": "high",
+    "createdAt": "2025-10-26T09:23:38.737Z",
+    "updatedAt": "2025-10-26T09:34:50.948Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T09:34:50.948Z",
+    "storedAt": "2025-10-26T09:34:50.948Z",
+    "analysisData": {
+      "totalPrepTime": 11.203516666666667,
+      "orderValue": 96,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
+    }
+  },
+  {
+    "id": "21cfa0f6-2a37-40a1-a3c0-38234ec0360c",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761470596097",
+        "name": "123",
+        "basePrice": 23,
+        "unitPrice": 23,
+        "price": 23,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3",
+    "totalAmount": 23,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T09:35:01.889Z",
+    "updatedAt": "2025-10-26T09:35:04.921Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T09:35:04.922Z",
+    "storedAt": "2025-10-26T09:35:04.922Z",
+    "analysisData": {
+      "totalPrepTime": 0.05053333333333333,
+      "orderValue": 23,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
+    }
+  },
+  {
+    "id": "a572dfce-a8e8-4454-9c27-14a73c2531e3",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761470596097",
+        "name": "123",
+        "basePrice": 23,
+        "unitPrice": 23,
+        "price": 23,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3",
+    "totalAmount": 23,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T10:01:18.721Z",
+    "updatedAt": "2025-10-26T10:01:21.759Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T10:01:21.760Z",
+    "storedAt": "2025-10-26T10:01:21.760Z",
+    "analysisData": {
+      "totalPrepTime": 0.05063333333333333,
+      "orderValue": 23,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
+    }
+  },
+  {
+    "id": "db1709ce-8a20-46c0-abe2-8d39f1d1b67a",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "eH0YKQsEpXpkgiEdy9DR",
+        "name": "Test Item",
+        "basePrice": 10,
+        "unitPrice": 10,
+        "price": 10,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3",
+    "totalAmount": 10,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T10:03:58.554Z",
+    "updatedAt": "2025-10-26T10:04:01.569Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T10:04:01.570Z",
+    "storedAt": "2025-10-26T10:04:01.570Z",
+    "analysisData": {
+      "totalPrepTime": 0.05025,
+      "orderValue": 10,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
+    }
+  },
+  {
+    "id": "5a23d724-cea6-4188-80a7-1b4556a399c2",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761470596097",
+        "name": "123",
+        "basePrice": 23,
+        "unitPrice": 23,
+        "price": 23,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "demo_manager_1",
+    "totalAmount": 23,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T10:04:09.906Z",
+    "updatedAt": "2025-10-26T10:04:12.543Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T10:04:12.543Z",
+    "storedAt": "2025-10-26T10:04:12.543Z",
+    "analysisData": {
+      "totalPrepTime": 0.04395,
+      "orderValue": 23,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "demo_manager_1"
+    }
+  },
+  {
+    "id": "fb5a298f-dbcb-4161-8767-57f6df1984d1",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "eH0YKQsEpXpkgiEdy9DR",
+        "name": "Test Item",
+        "basePrice": 10,
+        "unitPrice": 10,
+        "price": 10,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "demo_manager_1",
+    "totalAmount": 10,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T10:04:18.332Z",
+    "updatedAt": "2025-10-26T10:04:21.529Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T10:04:21.529Z",
+    "storedAt": "2025-10-26T10:04:21.529Z",
+    "analysisData": {
+      "totalPrepTime": 0.053283333333333335,
+      "orderValue": 10,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "demo_manager_1"
+    }
+  },
+  {
+    "id": "9600ab3c-1543-4e84-ba38-c471b54318c6",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761470596097",
+        "name": "123",
+        "basePrice": 23,
+        "unitPrice": 23,
+        "price": 23,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "demo_manager_1",
+    "totalAmount": 23,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T10:11:49.472Z",
+    "updatedAt": "2025-10-26T10:11:51.697Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T10:11:51.697Z",
+    "storedAt": "2025-10-26T10:11:51.697Z",
+    "analysisData": {
+      "totalPrepTime": 0.037083333333333336,
+      "orderValue": 23,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "demo_manager_1"
+    }
+  },
+  {
+    "id": "1249c21d-b065-4f1f-a8a8-e522b8a788ee",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761470596097",
+        "name": "123",
+        "basePrice": 23,
+        "unitPrice": 23,
+        "price": 23,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "demo_manager_1",
+    "totalAmount": 23,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T10:16:30.249Z",
+    "updatedAt": "2025-10-26T10:16:35.177Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T10:16:35.178Z",
+    "storedAt": "2025-10-26T10:16:35.178Z",
+    "analysisData": {
+      "totalPrepTime": 0.08213333333333334,
+      "orderValue": 23,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "demo_manager_1"
+    }
+  },
+  {
+    "id": "5e69b3f4-9ebd-4432-aae9-52d0061adcf1",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761481615768",
+        "name": "Hot Latte",
+        "basePrice": 79,
+        "unitPrice": 80.5,
+        "price": 80.5,
+        "quantity": 1,
+        "customizations": {
+          "size": "Small",
+          "milk": "Whole",
+          "extras": [
+            "Caramel Syrup",
+            "Extra Shot",
+            "Hazelnut Syrup"
+          ],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "27KuSS9mVQV8VYchVtY2dXXtq792",
+    "totalAmount": 80.5,
+    "estimatedPrepTime": 5,
+    "priority": "high",
+    "createdAt": "2025-10-26T16:58:20.215Z",
+    "updatedAt": "2025-10-26T16:58:24.849Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T16:58:24.849Z",
+    "storedAt": "2025-10-26T16:58:24.849Z",
+    "analysisData": {
+      "totalPrepTime": 0.07723333333333333,
+      "orderValue": 80.5,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "27KuSS9mVQV8VYchVtY2dXXtq792"
+    }
+  },
+  {
+    "id": "7572c30f-5e23-4c52-8ab4-5aac9c250be0",
+    "orderNumber": 1,
+    "customer": {
+      "name": "Test Customer",
+      "phone": "123-456-7890"
+    },
+    "items": [
+      {
+        "name": "Latte",
+        "quantity": 2,
+        "price": 4.5
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "totalAmount": 9,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T17:19:51.770Z",
+    "updatedAt": "2025-10-26T17:19:54.585Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T17:19:54.586Z",
+    "storedAt": "2025-10-26T17:19:54.586Z",
+    "analysisData": {
+      "totalPrepTime": 0.04691666666666667,
+      "orderValue": 9,
+      "itemCount": 1,
+      "customerType": "dine-in",
+      "paymentMethod": "cash"
+    }
   }
 ]

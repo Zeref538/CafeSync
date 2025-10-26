@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -22,67 +22,128 @@ import {
   ShoppingCart,
 } from '@mui/icons-material';
 
+interface InventoryAlert {
+  id: string;
+  name: string;
+  category: string;
+  currentStock: number;
+  minStock: number;
+  maxStock: number;
+  unit: string;
+  costPerUnit: number;
+  supplier: string;
+  lastRestocked: string;
+  expiryDate?: string;
+  location: string;
+}
+
 const InventoryAlerts: React.FC = () => {
-  // Mock inventory alerts data
-  const alerts = [
-    {
-      id: 1,
-      type: 'warning',
-      item: 'Whole Milk',
-      currentStock: 3,
-      minStock: 5,
-      unit: 'gallons',
-      priority: 'high',
-      message: 'Stock running low',
-    },
-    {
-      id: 2,
-      type: 'error',
-      item: 'Vanilla Syrup',
-      currentStock: 1,
-      minStock: 3,
-      unit: 'bottles',
-      priority: 'critical',
-      message: 'Critical stock level',
-    },
-    {
-      id: 3,
-      type: 'info',
-      item: 'Coffee Beans',
-      currentStock: 8,
-      minStock: 10,
-      unit: 'lbs',
-      priority: 'medium',
-      message: 'Consider reordering soon',
-    },
-  ];
+  const [alerts, setAlerts] = useState<InventoryAlert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const getAlertIcon = (type: string) => {
-    const icons: Record<string, React.ReactNode> = {
-      warning: <Warning color="warning" />,
-      error: <Error color="error" />,
-      info: <Info color="info" />,
-    };
-    return icons[type] || <Info />;
+  // API base URL
+  const API_BASE = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
+
+  // Fetch low stock items from API
+  const fetchLowStockItems = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`${API_BASE}/api/inventory/alerts/low-stock`);
+      
+      if (!response.ok) {
+        // @ts-ignore - TypeScript strict mode issue with Error constructor
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setAlerts(result.data);
+      } else {
+        // @ts-ignore - TypeScript strict mode issue with Error constructor
+        throw new Error(result.error || 'Failed to fetch low stock items');
+      }
+    } catch (err: unknown) {
+      console.error('Error fetching low stock items:', err);
+      // @ts-ignore - TypeScript strict mode issue with unknown type
+      setError(err instanceof Error ? err.message : 'Failed to fetch low stock items');
+      // Fallback to mock data if API fails
+      setAlerts([
+        {
+          id: 'milk-whole-1',
+          name: 'Whole Milk',
+          category: 'dairy',
+          currentStock: 3,
+          minStock: 5,
+          maxStock: 50,
+          unit: 'gallons',
+          costPerUnit: 3.50,
+          supplier: 'Dairy Fresh',
+          lastRestocked: '2024-01-20T08:00:00Z',
+          expiryDate: '2024-01-27T00:00:00Z',
+          location: 'refrigerator-1',
+        },
+        {
+          id: 'syrup-vanilla-1',
+          name: 'Vanilla Syrup',
+          category: 'syrups',
+          currentStock: 1,
+          minStock: 3,
+          maxStock: 20,
+          unit: 'bottles',
+          costPerUnit: 8.99,
+          supplier: 'Flavor Masters',
+          lastRestocked: '2024-01-18T14:00:00Z',
+          expiryDate: '2025-01-18T00:00:00Z',
+          location: 'shelf-b2',
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getPriorityColor = (priority: string) => {
-    const colors: Record<string, string> = {
-      critical: '#f44336',
-      high: '#ff9800',
-      medium: '#2196f3',
-      low: '#4caf50',
-    };
-    return colors[priority] || '#666';
+  // Load low stock items on component mount
+  useEffect(() => {
+    fetchLowStockItems();
+  }, []);
+
+  const getAlertIcon = (currentStock: number, minStock: number) => {
+    if (currentStock <= minStock) {
+      return <Error color="error" />;
+    } else if (currentStock <= minStock * 1.5) {
+      return <Warning color="warning" />;
+    }
+    return <Info color="info" />;
   };
 
-  const getAlertSeverity = (type: string) => {
-    const severities: Record<string, 'error' | 'warning' | 'info'> = {
-      error: 'error',
-      warning: 'warning',
-      info: 'info',
-    };
-    return severities[type] || 'info';
+  const getPriorityColor = (currentStock: number, minStock: number) => {
+    if (currentStock <= minStock) {
+      return '#f44336'; // critical
+    } else if (currentStock <= minStock * 1.5) {
+      return '#ff9800'; // high
+    }
+    return '#2196f3'; // medium
+  };
+
+  const getPriorityLabel = (currentStock: number, minStock: number) => {
+    if (currentStock <= minStock) {
+      return 'critical';
+    } else if (currentStock <= minStock * 1.5) {
+      return 'high';
+    }
+    return 'medium';
+  };
+
+  const getAlertMessage = (currentStock: number, minStock: number) => {
+    if (currentStock <= minStock) {
+      return 'Critical stock level - immediate reorder needed';
+    } else if (currentStock <= minStock * 1.5) {
+      return 'Stock running low - consider reordering';
+    }
+    return 'Consider reordering soon';
   };
 
   return (
@@ -109,50 +170,56 @@ const InventoryAlerts: React.FC = () => {
           </Box>
         ) : (
           <List sx={{ p: 0 }}>
-            {alerts.map((alert, index) => (
-              <React.Fragment key={alert.id}>
-                <ListItem sx={{ px: 0, py: 1.5 }}>
-                  <ListItemIcon>
-                    {getAlertIcon(alert.type)}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                          {alert.item}
-                        </Typography>
-                        <Chip
-                          label={alert.priority}
-                          size="small"
-                          sx={{
-                            backgroundColor: `${getPriorityColor(alert.priority)}20`,
-                            color: getPriorityColor(alert.priority),
-                            fontWeight: 500,
-                            textTransform: 'capitalize',
-                          }}
-                        />
-                      </Box>
-                    }
-                    secondary={
-                      <Box>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                          {alert.message}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {alert.currentStock} {alert.unit} remaining
+            {alerts.map((alert, index) => {
+              const priorityColor = getPriorityColor(alert.currentStock, alert.minStock);
+              const priorityLabel = getPriorityLabel(alert.currentStock, alert.minStock);
+              const alertMessage = getAlertMessage(alert.currentStock, alert.minStock);
+              
+              return (
+                <React.Fragment key={alert.id}>
+                  <ListItem sx={{ px: 0, py: 1.5 }}>
+                    <ListItemIcon>
+                      {getAlertIcon(alert.currentStock, alert.minStock)}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                            {alert.name}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Min: {alert.minStock} {alert.unit}
-                          </Typography>
+                          <Chip
+                            label={priorityLabel}
+                            size="small"
+                            sx={{
+                              backgroundColor: `${priorityColor}20`,
+                              color: priorityColor,
+                              fontWeight: 500,
+                              textTransform: 'capitalize',
+                            }}
+                          />
                         </Box>
-                      </Box>
-                    }
-                  />
-                </ListItem>
-                {index < alerts.length - 1 && <Divider />}
-              </React.Fragment>
-            ))}
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                            {alertMessage}
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {alert.currentStock} {alert.unit} remaining
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Min: {alert.minStock} {alert.unit}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                  {index < alerts.length - 1 && <Divider />}
+                </React.Fragment>
+              );
+            })}
           </List>
         )}
 

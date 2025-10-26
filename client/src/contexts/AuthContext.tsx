@@ -5,6 +5,8 @@ import {
   onAuthStateChanged, 
   signInWithPopup, 
   signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   GoogleAuthProvider,
   User as FirebaseUser 
 } from 'firebase/auth';
@@ -13,6 +15,10 @@ import {
   isEmployeeWhitelisted, 
   getEmployeeByEmail, 
   initializeDemoEmployees 
+} from '../utils/employeeUtilsFirestore';
+import { 
+  isEmployeeWhitelistedLegacy, 
+  getEmployeeByEmailLegacy 
 } from '../utils/employeeUtils';
 
 interface User {
@@ -53,68 +59,62 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Get users from localStorage (in a real app, this would be a database)
-  const getStoredUsers = (): Record<string, User & { password: string }> => {
+  // Firebase Auth handles user management - no localStorage needed for passwords
+
+  // Fallback function to check employee whitelist (Firestore first, then localStorage)
+  const checkEmployeeWhitelist = async (email: string): Promise<boolean> => {
     try {
-      const users = localStorage.getItem('cafesync_users');
-      return users ? JSON.parse(users) : {};
-    } catch {
-      return {};
+      // Try Firestore first
+      const isWhitelisted = await isEmployeeWhitelisted(email);
+      console.log('🔍 Firestore whitelist check for', email, ':', isWhitelisted);
+      return isWhitelisted;
+    } catch (error) {
+      console.warn('⚠️ Firestore whitelist check failed, trying localStorage:', error);
+      try {
+        // Fallback to localStorage
+        const isWhitelistedLegacy = isEmployeeWhitelistedLegacy(email);
+        console.log('🔍 localStorage whitelist check for', email, ':', isWhitelistedLegacy);
+        return isWhitelistedLegacy;
+      } catch (legacyError) {
+        console.error('❌ Both Firestore and localStorage whitelist checks failed:', legacyError);
+        return false;
+      }
     }
   };
 
-  const saveUsers = (users: Record<string, User & { password: string }>) => {
-    localStorage.setItem('cafesync_users', JSON.stringify(users));
-  };
-
-  // Initialize demo users if none exist
-  const initializeDemoUsers = useCallback(() => {
-    const storedUsers = getStoredUsers();
-    if (Object.keys(storedUsers).length === 0) {
-      const demoUsers: Record<string, User & { password: string }> = {
-        'manager@cafesync.com': {
-          id: 'demo_manager_1',
-          name: 'Sarah Johnson',
-          email: 'manager@cafesync.com',
-          role: 'manager',
-          station: 'management',
-          permissions: ['all'],
-          password: 'password'
-        },
-        'barista@cafesync.com': {
-          id: 'demo_barista_1',
-          name: 'Mike Chen',
-          email: 'barista@cafesync.com',
-          role: 'barista',
-          station: 'front-counter',
-          permissions: ['orders', 'inventory', 'loyalty'],
-          password: 'password'
-        },
-        'kitchen@cafesync.com': {
-          id: 'demo_kitchen_1',
-          name: 'Alex Rodriguez',
-          email: 'kitchen@cafesync.com',
-          role: 'kitchen',
-          station: 'kitchen',
-          permissions: ['orders', 'inventory'],
-          password: 'password'
-        }
-      };
-      saveUsers(demoUsers);
+  // Fallback function to get employee data (Firestore first, then localStorage)
+  const getEmployeeData = async (email: string): Promise<any> => {
+    try {
+      // Try Firestore first
+      const employeeData = await getEmployeeByEmail(email);
+      console.log('🔍 Firestore employee data for', email, ':', employeeData);
+      return employeeData;
+    } catch (error) {
+      console.warn('⚠️ Firestore employee data fetch failed, trying localStorage:', error);
+      try {
+        // Fallback to localStorage
+        const employeeDataLegacy = getEmployeeByEmailLegacy(email);
+        console.log('🔍 localStorage employee data for', email, ':', employeeDataLegacy);
+        return employeeDataLegacy;
+      } catch (legacyError) {
+        console.error('❌ Both Firestore and localStorage employee data fetches failed:', legacyError);
+        return null;
+      }
     }
-  }, []);
+  };
 
   // Check for existing session on mount
   useEffect(() => {
-    // Initialize demo employees
+    // Initialize essential employees in Firestore
     initializeDemoEmployees();
     
     // Listen for Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       try {
         if (firebaseUser && firebaseUser.email) {
-          // Check if user is whitelisted employee
-          if (!isEmployeeWhitelisted(firebaseUser.email)) {
+          // Check if user is whitelisted employee (with fallback)
+          const isWhitelisted = await checkEmployeeWhitelist(firebaseUser.email);
+          if (!isWhitelisted) {
             toast.error('Access denied. You are not an authorized employee.');
             await signOut(auth);
             setUser(null);
@@ -122,8 +122,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             return;
           }
           
-          // Get employee data
-          const employeeData = getEmployeeByEmail(firebaseUser.email);
+          // Get employee data (with fallback)
+          const employeeData = await getEmployeeData(firebaseUser.email);
           if (employeeData) {
             const userData: User = {
               id: firebaseUser.uid,
@@ -164,37 +164,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      
-      // First check if it's a demo account
-      const storedUsers = getStoredUsers();
-      const userWithPassword = storedUsers[email];
-      
-      // Check if user exists and password matches
-      if (userWithPassword && userWithPassword.password === password) {
-        const { password: _, ...userData } = userWithPassword; // Remove password from user data
-        
-        setUser(userData);
-        localStorage.setItem('cafesync_token', `token_${Date.now()}`);
-        localStorage.setItem('cafesync_user', JSON.stringify(userData));
-        
-        toast.success(`Welcome back, ${userData.name}!`);
-        
-        // Redirect based on role/station
-        if (userData.station) {
-          navigate(`/station/${userData.station}`);
-        } else {
-          navigate('/dashboard');
-        }
-        
-        return true;
-      } else {
-        toast.error('Invalid credentials. Please check your email and password.');
+      // Check if user is whitelisted employee first (with fallback)
+      const isWhitelisted = await checkEmployeeWhitelist(email);
+      if (!isWhitelisted) {
+        toast.error('Access denied. You are not an authorized employee. Please contact your manager.');
         return false;
       }
-    } catch (error) {
+      
+      // Use Firebase Auth for email/password authentication
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = result.user;
+      
+      if (!firebaseUser || !firebaseUser.email) {
+        toast.error('Login failed. Please try again.');
+        return false;
+      }
+      
+      // Get employee data (with fallback)
+      const employeeData = await getEmployeeData(firebaseUser.email);
+      if (!employeeData) {
+        toast.error('Employee record not found.');
+        await signOut(auth);
+        return false;
+      }
+      
+      const userData: User = {
+        id: firebaseUser.uid,
+        name: employeeData.name || firebaseUser.displayName || 'Employee',
+        email: firebaseUser.email,
+        role: employeeData.role,
+        station: employeeData.station,
+        permissions: employeeData.permissions,
+      };
+      
+      setUser(userData);
+      localStorage.setItem('cafesync_user', JSON.stringify(userData));
+      
+      toast.success(`Welcome back, ${userData.name}!`);
+      
+      // Redirect based on role/station
+      if (userData.station) {
+        navigate(`/station/${userData.station}`);
+      } else {
+        navigate('/dashboard');
+      }
+      
+      return true;
+    } catch (error: any) {
       console.error('Login failed:', error);
-      toast.error('Login failed. Please try again.');
+      
+      if (error.code === 'auth/user-not-found') {
+        toast.error('No account found with this email address.');
+      } else if (error.code === 'auth/wrong-password') {
+        toast.error('Incorrect password. Please try again.');
+      } else if (error.code === 'auth/invalid-email') {
+        toast.error('Invalid email address.');
+      } else if (error.code === 'auth/too-many-requests') {
+        toast.error('Too many failed attempts. Please try again later.');
+      } else {
+        toast.error('Login failed. Please try again.');
+      }
+      
       return false;
     } finally {
       setIsLoading(false);
@@ -205,39 +235,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      
-      const storedUsers = getStoredUsers();
-      
-      // Check if user already exists
-      if (storedUsers[data.email]) {
-        toast.error('An account with this email already exists');
+      // Check if user is whitelisted employee first (with fallback)
+      const isWhitelisted = await checkEmployeeWhitelist(data.email);
+      if (!isWhitelisted) {
+        toast.error('Access denied. You are not an authorized employee. Please contact your manager.');
         return false;
       }
       
-      // Generate user ID and determine permissions
-      const userId = `user_${Date.now()}`;
-      const permissions = getPermissionsForRole(data.role);
-      const station = getStationForRole(data.role);
+      // Use Firebase Auth to create account
+      const result = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const firebaseUser = result.user;
       
-      const newUser: User & { password: string } = {
-        id: userId,
-        name: data.name,
-        email: data.email,
-        role: data.role,
-        station,
-        permissions,
-        password: data.password, // In production, this would be hashed
+      if (!firebaseUser || !firebaseUser.email) {
+        toast.error('Account creation failed. Please try again.');
+        return false;
+      }
+      
+      // Get employee data (with fallback)
+      const employeeData = await getEmployeeData(firebaseUser.email);
+      if (!employeeData) {
+        toast.error('Employee record not found.');
+        await signOut(auth);
+        return false;
+      }
+      
+      const userData: User = {
+        id: firebaseUser.uid,
+        name: employeeData.name || data.name || 'Employee',
+        email: firebaseUser.email,
+        role: employeeData.role,
+        station: employeeData.station,
+        permissions: employeeData.permissions,
       };
       
-      // Save user to storage
-      storedUsers[data.email] = newUser;
-      saveUsers(storedUsers);
-      
-      // Auto-login after signup
-      const { password: _, ...userData } = newUser;
       setUser(userData);
-      localStorage.setItem('cafesync_token', `token_${Date.now()}`);
       localStorage.setItem('cafesync_user', JSON.stringify(userData));
       
       toast.success(`Welcome to CafeSync, ${userData.name}!`);
@@ -250,9 +281,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Signup failed:', error);
-      toast.error('Registration failed. Please try again.');
+      
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error('An account with this email already exists.');
+      } else if (error.code === 'auth/invalid-email') {
+        toast.error('Invalid email address.');
+      } else if (error.code === 'auth/weak-password') {
+        toast.error('Password should be at least 6 characters.');
+      } else {
+        toast.error('Registration failed. Please try again.');
+      }
+      
       return false;
     } finally {
       setIsLoading(false);
@@ -287,7 +328,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Logout error:', error);
     }
     setUser(null);
-    localStorage.removeItem('cafesync_token');
     localStorage.removeItem('cafesync_user');
     navigate('/login');
     toast.success('Logged out successfully');
@@ -320,15 +360,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
       }
       
-      // Check if user is whitelisted employee
-      if (!isEmployeeWhitelisted(firebaseUser.email)) {
+      // Check if user is whitelisted employee (with fallback)
+      const isWhitelisted = await checkEmployeeWhitelist(firebaseUser.email);
+      if (!isWhitelisted) {
         toast.error('Access denied. You are not an authorized employee. Please contact your manager.');
         await signOut(auth);
         return false;
       }
       
-      // Get employee data
-      const employeeData = getEmployeeByEmail(firebaseUser.email);
+      // Get employee data (with fallback)
+      const employeeData = await getEmployeeData(firebaseUser.email);
       if (!employeeData) {
         toast.error('Employee record not found.');
         await signOut(auth);

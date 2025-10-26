@@ -10,6 +10,7 @@ interface SocketContextType {
   emitOrderUpdate: (data: any) => void;
   emitInventoryUpdate: (data: any) => void;
   emitAnalyticsUpdate: (data: any) => void;
+  emitMenuUpdate: (data: any) => void;
   syncOrderData: (orderId: string, station: string, action: string, data: any) => void;
 }
 
@@ -24,73 +25,69 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Only initialize socket connection in development or if server URL is provided
-    const serverUrl = process.env.REACT_APP_SERVER_URL;
     const isDevelopment = process.env.NODE_ENV === 'development';
     
-    if (!serverUrl && !isDevelopment) {
-      // In production without server URL, skip socket connection
-      console.log('Socket connection skipped in production');
-      return;
-    }
+    if (isDevelopment) {
+      // Only use socket connection in development
+      const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
+      
+      console.log('Connecting to socket in development:', serverUrl);
+      
+      // Initialize socket connection
+      const newSocket = io(serverUrl, {
+        transports: ['websocket', 'polling'],
+        timeout: 20000,
+        forceNew: true,
+      });
 
-    // Initialize socket connection
-    const newSocket = io(serverUrl || 'http://localhost:5000', {
-      transports: ['websocket', 'polling'],
-      timeout: 20000,
-      forceNew: true,
-    });
-
-    // Connection event handlers
-    newSocket.on('connect', () => {
-      console.log('Connected to server');
-      setIsConnected(true);
-      if (isDevelopment) {
+      // Connection event handlers
+      newSocket.on('connect', () => {
+        console.log('Connected to server');
+        setIsConnected(true);
         toast.success('Connected to CafeSync server');
-      }
-    });
+      });
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('Disconnected from server:', reason);
-      setIsConnected(false);
-      if (reason === 'io server disconnect' && isDevelopment) {
-        toast.error('Disconnected from server');
-      }
-    });
+      newSocket.on('disconnect', (reason) => {
+        console.log('Disconnected from server:', reason);
+        setIsConnected(false);
+        if (reason === 'io server disconnect') {
+          toast.error('Disconnected from server');
+        }
+      });
 
-    newSocket.on('connect_error', (error) => {
-      console.error('Connection error:', error);
-      setIsConnected(false);
-      // Only show error toast in development
-      if (isDevelopment) {
+      newSocket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+        setIsConnected(false);
         toast.error('Failed to connect to server');
-      }
-    });
+      });
 
-    // Global event handlers
-    newSocket.on('order-update', (data) => {
-      console.log('Order update received:', data);
-      // Handle order updates globally
-    });
+      // Global event handlers
+      newSocket.on('order-update', (data) => {
+        console.log('Order update received:', data);
+        // Handle order updates globally
+      });
 
-    newSocket.on('inventory-update', (data) => {
-      console.log('Inventory update received:', data);
-      if (isDevelopment) {
+      newSocket.on('inventory-update', (data) => {
+        console.log('Inventory update received:', data);
         toast.success(`Inventory updated: ${data.itemName}`);
-      }
-    });
+      });
 
-    newSocket.on('analytics-update', (data) => {
-      console.log('Analytics update received:', data);
-      // Handle analytics updates globally
-    });
+      newSocket.on('analytics-update', (data) => {
+        console.log('Analytics update received:', data);
+        // Handle analytics updates globally
+      });
 
-    setSocket(newSocket);
+      setSocket(newSocket);
 
-    // Cleanup on unmount
-    return () => {
-      newSocket.close();
-    };
+      return () => {
+        newSocket.close();
+      };
+    } else {
+      // In production, simulate connected state since we use Firebase Functions
+      console.log('Production mode - simulating connected state');
+      setIsConnected(true);
+      setSocket(null); // No actual socket in production
+    }
   }, []);
 
   const joinStation = (station: string) => {
@@ -122,6 +119,12 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const emitAnalyticsUpdate = (data: any) => {
     if (socket) {
       socket.emit('analytics-update', data);
+    }
+  };
+
+  const emitMenuUpdate = (data: any) => {
+    if (socket) {
+      socket.emit('menu-update', data);
     }
   };
 
@@ -171,6 +174,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     emitOrderUpdate,
     emitInventoryUpdate,
     emitAnalyticsUpdate,
+    emitMenuUpdate,
     syncOrderData,
   };
 

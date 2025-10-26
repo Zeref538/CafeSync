@@ -6,6 +6,93 @@ const { getDb } = require('../firebase');
 const { addSalesData } = require('./analytics');
 const completedOrdersStorage = require('../services/completedOrdersStorage');
 
+// Import inventory functions
+const inventoryRoutes = require('./inventory');
+
+// Mock inventory data (same as in inventory.js for consistency)
+let inventory = [
+  {
+    id: 'coffee-beans-1',
+    name: 'Premium Arabica Beans',
+    category: 'coffee',
+    currentStock: 50,
+    minStock: 10,
+    maxStock: 100,
+    unit: 'lbs',
+    costPerUnit: 12.50,
+    supplier: 'Coffee Supply Co.',
+    lastRestocked: '2024-01-15T10:00:00Z',
+    expiryDate: '2024-06-15T00:00:00Z',
+    location: 'storage-room-a'
+  },
+  {
+    id: 'milk-whole-1',
+    name: 'Whole Milk',
+    category: 'dairy',
+    currentStock: 25,
+    minStock: 5,
+    maxStock: 50,
+    unit: 'gallons',
+    costPerUnit: 3.50,
+    supplier: 'Dairy Fresh',
+    lastRestocked: '2024-01-20T08:00:00Z',
+    expiryDate: '2024-01-27T00:00:00Z',
+    location: 'refrigerator-1'
+  },
+  {
+    id: 'syrup-vanilla-1',
+    name: 'Vanilla Syrup',
+    category: 'syrups',
+    currentStock: 8,
+    minStock: 3,
+    maxStock: 20,
+    unit: 'bottles',
+    costPerUnit: 8.99,
+    supplier: 'Flavor Masters',
+    lastRestocked: '2024-01-18T14:00:00Z',
+    expiryDate: '2025-01-18T00:00:00Z',
+    location: 'shelf-b2'
+  }
+];
+
+// Function to deduct inventory for completed orders
+async function deductInventoryForOrder(items) {
+  try {
+    // Simple mapping of menu items to inventory items
+    const itemMapping = {
+      'Americano': { 'coffee-beans-1': 0.1 }, // 0.1 lbs coffee per americano
+      'Latte': { 'coffee-beans-1': 0.1, 'milk-whole-1': 0.2 }, // 0.1 lbs coffee + 0.2 gallons milk
+      'Cappuccino': { 'coffee-beans-1': 0.1, 'milk-whole-1': 0.15 },
+      'Espresso': { 'coffee-beans-1': 0.05 },
+      'Mocha': { 'coffee-beans-1': 0.1, 'milk-whole-1': 0.2, 'syrup-vanilla-1': 0.1 },
+      'Frappuccino': { 'coffee-beans-1': 0.1, 'milk-whole-1': 0.3, 'syrup-vanilla-1': 0.2 },
+    };
+
+    for (const item of items) {
+      const itemName = item.name;
+      const quantity = item.quantity || 1;
+      
+      if (itemMapping[itemName]) {
+        for (const [inventoryId, usagePerUnit] of Object.entries(itemMapping[itemName])) {
+          const totalUsage = usagePerUnit * quantity;
+          
+          // Find inventory item
+          const inventoryIndex = inventory.findIndex(i => i.id === inventoryId);
+          if (inventoryIndex !== -1) {
+            // Deduct from inventory
+            inventory[inventoryIndex].currentStock = Math.max(0, inventory[inventoryIndex].currentStock - totalUsage);
+            inventory[inventoryIndex].lastUpdated = moment().toISOString();
+            
+            console.log(`Deducted ${totalUsage} ${inventory[inventoryIndex].unit} from ${inventory[inventoryIndex].name}`);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error deducting inventory:', error);
+  }
+}
+
 // Firestore collection reference
 const ORDERS_COLLECTION = 'orders';
 
@@ -205,6 +292,8 @@ router.patch('/:id/status', async (req, res) => {
       // Store completed order in persistent storage
       if (status === 'completed') {
         await completedOrdersStorage.storeCompletedOrder(updatedOrder);
+        // Deduct inventory for completed orders
+        await deductInventoryForOrder(updatedOrder.items);
       }
       
       // Broadcast the update via socket
@@ -244,6 +333,8 @@ router.patch('/:id/status', async (req, res) => {
     // Store completed order in persistent storage
     if (status === 'completed') {
       await completedOrdersStorage.storeCompletedOrder(updatedOrder);
+      // Deduct inventory for completed orders
+      await deductInventoryForOrder(updatedOrder.items);
     }
     
     // Broadcast the update via socket

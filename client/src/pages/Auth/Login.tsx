@@ -11,7 +11,6 @@ import {
   Alert,
   InputAdornment,
   IconButton,
-  Divider,
   Chip,
   useTheme,
   Tab,
@@ -22,7 +21,6 @@ import {
   VisibilityOff,
   Email,
   Lock,
-  Storefront,
   Coffee,
   Google,
 } from '@mui/icons-material';
@@ -73,20 +71,6 @@ const Login: React.FC = () => {
     const success = await login(email, password);
     if (!success) {
       setError('Invalid credentials. Please try again.');
-    }
-  };
-
-  const handleDemoLogin = (role: string) => {
-    const demoCredentials: Record<string, { email: string; password: string }> = {
-      manager: { email: 'manager@cafesync.com', password: 'password' },
-      barista: { email: 'barista@cafesync.com', password: 'password' },
-      kitchen: { email: 'kitchen@cafesync.com', password: 'password' },
-    };
-
-    const credentials = demoCredentials[role];
-    if (credentials) {
-      setEmail(credentials.email);
-      setPassword(credentials.password);
     }
   };
 
@@ -197,7 +181,7 @@ const Login: React.FC = () => {
               </Typography>
             </TabPanel>
 
-            {/* Tab 2: Password Login (Legacy/Demo) */}
+            {/* Tab 2: Email & Password Login */}
             <TabPanel value={tabValue} index={1}>
               <Box component="form" onSubmit={handleSubmit}>
                 <TextField
@@ -258,41 +242,6 @@ const Login: React.FC = () => {
                 </Button>
               </Box>
             </TabPanel>
-
-            <Divider sx={{ my: 3 }}>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                Demo Accounts
-              </Typography>
-            </Divider>
-
-            {/* Demo Account Buttons */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Button
-                variant="outlined"
-                startIcon={<Storefront />}
-                onClick={() => handleDemoLogin('manager')}
-                sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
-              >
-                Manager Dashboard
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<Storefront />}
-                onClick={() => handleDemoLogin('barista')}
-                sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
-              >
-                Barista Station
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<Storefront />}
-                onClick={() => handleDemoLogin('kitchen')}
-                sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
-              >
-                Kitchen Station
-              </Button>
-            </Box>
-
 
             {/* Features */}
             <Box sx={{ mt: 4, textAlign: 'center' }}>

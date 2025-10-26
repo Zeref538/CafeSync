@@ -10,6 +10,136 @@ admin.initializeApp();
 // Set global options for cost control
 setGlobalOptions({ maxInstances: 10 });
 
+// Menu management functions
+exports.api = onRequest(async (request, response) => {
+  const db = admin.firestore();
+  
+  // Enable CORS
+  response.set('Access-Control-Allow-Origin', '*');
+  response.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.set('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (request.method === 'OPTIONS') {
+    response.status(204).send('');
+    return;
+  }
+  
+  const path = request.path;
+  
+  logger.info(`Menu API request: ${request.method} ${path}`);
+  console.log(`Menu API request: ${request.method} ${path}`, request.body);
+  
+  try {
+    if (path === '/menu' && request.method === 'GET') {
+      // Get all menu items
+      const menuSnapshot = await db.collection('menu').get();
+      const menuItems = [];
+      
+      menuSnapshot.forEach(doc => {
+        const data = doc.data();
+        logger.info(`Menu item data for ${doc.id}:`, JSON.stringify(data));
+        console.log(`Menu item data for ${doc.id}:`, JSON.stringify(data));
+        menuItems.push({
+          id: doc.id,
+          ...data
+        });
+      });
+      
+      logger.info(`Returning ${menuItems.length} menu items`);
+      response.json({ data: menuItems });
+      
+    } else if (path === '/menu' && request.method === 'POST') {
+      // Add new menu item
+      const menuData = request.body;
+      
+      logger.info('POST menu item data:', JSON.stringify(menuData));
+      console.log('POST menu item data:', JSON.stringify(menuData));
+      
+      // Validate required fields
+      if (!menuData.name || !menuData.category) {
+        response.status(400).json({ error: 'Name and category are required' });
+        return;
+      }
+      
+      // Use the provided ID or generate a new one
+      if (menuData.id) {
+        const { id, ...dataToStore } = menuData;
+        await db.collection('menu').doc(id.toString()).set(dataToStore);
+        response.status(200).json({ 
+          success: true, 
+          id: id.toString(),
+          message: 'Menu item added successfully' 
+        });
+      } else {
+        const docRef = await db.collection('menu').add(menuData);
+        response.status(200).json({ 
+          success: true, 
+          id: docRef.id,
+          message: 'Menu item added successfully' 
+        });
+      }
+      
+    } else if (path === '/menu' && request.method === 'PUT') {
+      // Update menu item
+      const menuData = request.body;
+      
+      logger.info('PUT menu item data:', JSON.stringify(menuData));
+      console.log('PUT menu item data:', JSON.stringify(menuData));
+      
+      const { id, ...updateData } = menuData;
+      
+      if (!id) {
+        response.status(400).json({ error: 'Menu item ID is required' });
+        return;
+      }
+      
+      logger.info(`Updating menu item ${id} with data:`, JSON.stringify(updateData));
+      console.log(`Updating menu item ${id} with data:`, JSON.stringify(updateData));
+      
+      await db.collection('menu').doc(id.toString()).set(updateData, { merge: true });
+      
+      // Log what was saved
+      const savedDoc = await db.collection('menu').doc(id.toString()).get();
+      logger.info(`Saved menu item data:`, JSON.stringify(savedDoc.data()));
+      console.log(`Saved menu item data:`, JSON.stringify(savedDoc.data()));
+      
+      response.status(200).json({ 
+        success: true, 
+        message: 'Menu item updated successfully' 
+      });
+      
+    } else if (path.startsWith('/menu/') && request.method === 'DELETE') {
+      // Delete menu item
+      const menuId = path.split('/')[2];
+      
+      if (!menuId) {
+        response.status(400).json({ error: 'Menu item ID is required' });
+        return;
+      }
+      
+      await db.collection('menu').doc(menuId.toString()).delete();
+      
+      response.status(200).json({ 
+        success: true, 
+        message: 'Menu item deleted successfully' 
+      });
+      
+    } else {
+      logger.info(`Unhandled path: ${path} with method: ${request.method}`);
+      console.log(`Unhandled path: ${path} with method: ${request.method}`);
+      response.status(404).json({ error: 'Endpoint not found', path: path, method: request.method });
+    }
+    
+  } catch (error) {
+    logger.error('Menu API error:', error);
+    console.error('Menu API error:', error);
+    response.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
+});
+
 // Hello World function
 exports.helloWorld = onRequest((request, response) => {
   logger.info("Hello logs!", {structuredData: true});
