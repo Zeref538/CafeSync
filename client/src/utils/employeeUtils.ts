@@ -124,43 +124,64 @@ export const updateEmployeeStatus = (
 export const initializeDemoEmployees = (): void => {
   const employees = getAllEmployees();
   
-  // If no employees exist, create demo accounts
-  if (Object.keys(employees).length === 0) {
-    const demoEmployees: Record<string, EmployeeRecord> = {
-      'manager@cafesync.com': {
-        email: 'manager@cafesync.com',
-        name: 'Sarah Johnson',
-        role: 'manager',
-        station: 'management',
-        permissions: ['all'],
-        invitedBy: 'system',
-        invitedAt: new Date().toISOString(),
-        status: 'active',
-      },
-      'barista@cafesync.com': {
-        email: 'barista@cafesync.com',
-        name: 'Mike Chen',
-        role: 'barista',
-        station: 'front-counter',
-        permissions: ['orders', 'inventory', 'loyalty'],
-        invitedBy: 'manager@cafesync.com',
-        invitedAt: new Date().toISOString(),
-        status: 'active',
-      },
-      'kitchen@cafesync.com': {
-        email: 'kitchen@cafesync.com',
-        name: 'Alex Rodriguez',
-        role: 'kitchen',
-        station: 'kitchen',
-        permissions: ['orders', 'inventory'],
-        invitedBy: 'manager@cafesync.com',
-        invitedAt: new Date().toISOString(),
-        status: 'active',
-      },
-    };
-    
-    saveEmployees(demoEmployees);
-  }
+  // Always ensure demo accounts and your Google accounts exist
+  const demoEmployees: Record<string, EmployeeRecord> = {
+    'manager@cafesync.com': {
+      email: 'manager@cafesync.com',
+      name: 'Sarah Johnson',
+      role: 'manager',
+      station: 'management',
+      permissions: ['all'],
+      invitedBy: 'system',
+      invitedAt: new Date().toISOString(),
+      status: 'active',
+    },
+    'barista@cafesync.com': {
+      email: 'barista@cafesync.com',
+      name: 'Mike Chen',
+      role: 'barista',
+      station: 'front-counter',
+      permissions: ['orders', 'inventory', 'loyalty'],
+      invitedBy: 'manager@cafesync.com',
+      invitedAt: new Date().toISOString(),
+      status: 'active',
+    },
+    'kitchen@cafesync.com': {
+      email: 'kitchen@cafesync.com',
+      name: 'Alex Rodriguez',
+      role: 'kitchen',
+      station: 'kitchen',
+      permissions: ['orders', 'inventory'],
+      invitedBy: 'manager@cafesync.com',
+      invitedAt: new Date().toISOString(),
+      status: 'active',
+    },
+    // Add your Google accounts
+    'martinezjandrei8425@gmail.com': {
+      email: 'martinezjandrei8425@gmail.com',
+      name: 'John Andrei Martinez',
+      role: 'manager',
+      station: 'management',
+      permissions: ['all'],
+      invitedBy: 'system',
+      invitedAt: new Date().toISOString(),
+      status: 'active',
+    },
+    'johnandreimartinez842@gmail.com': {
+      email: 'johnandreimartinez842@gmail.com',
+      name: 'John Andrei Martinez',
+      role: 'manager',
+      station: 'management',
+      permissions: ['all'],
+      invitedBy: 'system',
+      invitedAt: new Date().toISOString(),
+      status: 'active',
+    },
+  };
+  
+  // Merge with existing employees (don't overwrite)
+  const mergedEmployees = { ...employees, ...demoEmployees };
+  saveEmployees(mergedEmployees);
 };
 
 // Helper functions

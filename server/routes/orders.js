@@ -3,6 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment');
 const { getDb } = require('../firebase');
+const { addSalesData } = require('./analytics');
 
 // Firestore collection reference
 const ORDERS_COLLECTION = 'orders';
@@ -34,7 +35,11 @@ router.get('/', async (req, res) => {
       // Fallback to in-memory storage
       const { status, station, limit = 50 } = req.query;
       let filteredOrders = [...orders];
-      if (status) filteredOrders = filteredOrders.filter(order => order.status === status);
+      if (status) {
+        // Handle comma-separated status values (e.g., "pending,preparing,ready")
+        const statusList = status.includes(',') ? status.split(',') : [status];
+        filteredOrders = filteredOrders.filter(order => statusList.includes(order.status));
+      }
       if (station) filteredOrders = filteredOrders.filter(order => order.station === station);
       filteredOrders = filteredOrders.slice(0, parseInt(limit));
       return res.json({ success: true, data: filteredOrders, count: filteredOrders.length });
@@ -42,7 +47,18 @@ router.get('/', async (req, res) => {
 
     const { status, station, limit = 50 } = req.query;
     let q = db.collection(ORDERS_COLLECTION).orderBy('createdAt', 'desc');
-    if (status) q = q.where('status', '==', status);
+    
+    // Handle comma-separated status values for Firebase
+    if (status) {
+      if (status.includes(',')) {
+        // For multiple statuses, we need to use 'in' operator
+        const statusList = status.split(',');
+        q = q.where('status', 'in', statusList);
+      } else {
+        q = q.where('status', '==', status);
+      }
+    }
+    
     if (station) q = q.where('station', '==', station);
 
     const snap = await q.limit(parseInt(limit)).get();
@@ -72,7 +88,7 @@ router.post('/', async (req, res) => {
   try {
     const db = getDb();
     
-    const { customer, items, station, specialInstructions } = req.body;
+    const { customer, items, station, specialInstructions, paymentMethod = 'cash', staffId } = req.body;
     if (!customer || !items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Customer and items are required' });
     }
@@ -88,6 +104,9 @@ router.post('/', async (req, res) => {
       orderNumber = orderCounter++;
     }
     
+    const totalAmount = calculateTotal(items);
+    const estimatedPrepTime = calculatePrepTime(items);
+    
     const order = {
       id: orderId,
       orderNumber,
@@ -96,10 +115,17 @@ router.post('/', async (req, res) => {
       station: station || 'front-counter',
       status: 'pending',
       specialInstructions: specialInstructions || '',
+      paymentMethod,
+      staffId,
+      totalAmount,
+      estimatedPrepTime,
+      priority: calculatePriority(items, totalAmount),
       createdAt: now,
       updatedAt: now,
-      totalAmount: calculateTotal(items),
-      estimatedPrepTime: calculatePrepTime(items)
+      // Kitchen-specific fields
+      kitchenNotes: '',
+      actualPrepTime: null,
+      completedAt: null
     };
 
     if (db) {
@@ -108,6 +134,9 @@ router.post('/', async (req, res) => {
       // Fallback to in-memory storage
       orders.push(order);
     }
+    
+    // Add to sales data for analytics
+    addSalesData(order);
     
     res.status(201).json({ success: true, data: order, message: 'Order created successfully' });
   } catch (err) {
@@ -128,10 +157,41 @@ router.patch('/:id/status', async (req, res) => {
   }
   try {
     const db = getDb();
-    if (!db) return res.status(503).json({ success: false, error: 'Database not configured' });
-    const ref = db.collection(ORDERS_COLLECTION).doc(req.params.id);
     const now = moment().toISOString();
-    await ref.set({ status, updatedAt: now }, { merge: true });
+    
+    if (!db) {
+      // Fallback to in-memory storage
+      const orderIndex = orders.findIndex(order => order.id === req.params.id);
+      if (orderIndex === -1) {
+        return res.status(404).json({ success: false, error: 'Order not found' });
+      }
+      
+      // Update order in memory
+      orders[orderIndex] = {
+        ...orders[orderIndex],
+        status,
+        updatedAt: now,
+        ...(status === 'completed' && { completedAt: now })
+      };
+      
+      return res.json({ 
+        success: true, 
+        data: orders[orderIndex], 
+        message: 'Order status updated successfully' 
+      });
+    }
+    
+    const ref = db.collection(ORDERS_COLLECTION).doc(req.params.id);
+    
+    // Prepare update data
+    const updateData = { status, updatedAt: now };
+    
+    // Add completion timestamp if order is completed
+    if (status === 'completed') {
+      updateData.completedAt = now;
+    }
+    
+    await ref.set(updateData, { merge: true });
     await ref.collection('history').add({ status, timestamp: now, updatedBy: req.body.updatedBy || 'system' });
     const updated = await ref.get();
     res.json({ success: true, data: { id: updated.id, ...updated.data() }, message: 'Order status updated successfully' });
@@ -205,7 +265,8 @@ router.get('/station/:station', async (req, res) => {
 // Helper functions
 function calculateTotal(items) {
   return items.reduce((total, item) => {
-    return total + (item.price * item.quantity);
+    const itemPrice = item.unitPrice || item.price || 0;
+    return total + (itemPrice * item.quantity);
   }, 0);
 }
 
@@ -214,10 +275,27 @@ function calculatePrepTime(items) {
   const baseTime = 2;
   const timePerItem = 1;
   const complexityMultiplier = items.some(item => 
-    item.category === 'specialty' || item.modifiers?.length > 0
+    item.category === 'specialty' || item.customizations?.extras?.length > 0
   ) ? 1.5 : 1;
   
   return Math.ceil((baseTime + (items.length * timePerItem)) * complexityMultiplier);
 }
 
+function calculatePriority(items, totalAmount) {
+  // High priority for large orders or specialty items
+  if (totalAmount > 50 || items.some(item => item.category === 'specialty')) {
+    return 'high';
+  }
+  if (totalAmount > 25 || items.length > 3) {
+    return 'normal';
+  }
+  return 'normal';
+}
+
+// Export function to get orders for analytics
+function getOrders() {
+  return orders;
+}
+
 module.exports = router;
+module.exports.getOrders = getOrders;

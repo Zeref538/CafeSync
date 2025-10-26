@@ -6,7 +6,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
-const { initializeFirebaseAdmin } = require('./firebase');
+// const { initializeFirebaseAdmin } = require('./firebase');
 
 const app = express();
 const server = http.createServer(app);
@@ -32,7 +32,7 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // Initialize Firebase Admin (if env vars provided)
-initializeFirebaseAdmin();
+// initializeFirebaseAdmin();
 
 // Import routes
 const orderRoutes = require('./routes/orders');

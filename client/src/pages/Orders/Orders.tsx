@@ -16,7 +16,6 @@ import {
   InputAdornment,
   Tabs,
   Tab,
-  Paper,
   Avatar,
   Divider,
 } from '@mui/material';

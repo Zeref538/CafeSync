@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -14,7 +14,6 @@ import {
   Receipt,
   Inventory,
   People,
-  Coffee,
   Refresh,
   Notifications,
 } from '@mui/icons-material';
@@ -23,22 +22,36 @@ import { useSocket } from '../../contexts/SocketContext';
 import WeatherWidget from '../../components/Widgets/WeatherWidget';
 import SalesChart from '../../components/Charts/SalesChart';
 import QuickActions from '../../components/Dashboard/QuickActions';
-import RecentOrders from '../../components/Dashboard/RecentOrders';
-import InventoryAlerts from '../../components/Dashboard/InventoryAlerts';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { isConnected } = useSocket();
+  const [stats, setStats] = useState({
+    todaySales: 0,
+    todayOrders: 0,
+    averageDeliveryTime: 0,
+    inventoryAlerts: 0,
+    completionRate: 0,
+    averageOrderTime: 0,
+  });
 
-  // Mock data - in production, this would come from API
-  const stats = {
-    todaySales: 1247.50,
-    todayOrders: 89,
-    activeCustomers: 156,
-    inventoryAlerts: 3,
-    completionRate: 94,
-    averageOrderTime: 3.2,
-  };
+  // Fetch real data from API
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/analytics/dashboard');
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        // Keep stats at 0 if API fails
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   const StatCard: React.FC<{
     title: string;
@@ -57,7 +70,7 @@ const Dashboard: React.FC = () => {
             <Typography variant="h4" sx={{ fontWeight: 700, color }}>
               {value}
             </Typography>
-            {trend && (
+            {trend && trend > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                 <TrendingUp sx={{ fontSize: 16, color: 'success.main', mr: 0.5 }} />
                 <Typography variant="body2" color="success.main">
@@ -95,12 +108,14 @@ const Dashboard: React.FC = () => {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip
-              icon={<Notifications />}
-              label={`${stats.inventoryAlerts} alerts`}
-              color="warning"
-              variant="outlined"
-            />
+            {stats.inventoryAlerts > 0 && (
+              <Chip
+                icon={<Notifications />}
+                label={`${stats.inventoryAlerts} alerts`}
+                color="warning"
+                variant="outlined"
+              />
+            )}
             <IconButton color="primary">
               <Refresh />
             </IconButton>
@@ -131,7 +146,6 @@ const Dashboard: React.FC = () => {
             value={`₱${stats.todaySales.toFixed(2)}`}
             icon={<TrendingUp />}
             color="#4caf50"
-            trend={12}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -140,13 +154,12 @@ const Dashboard: React.FC = () => {
             value={stats.todayOrders}
             icon={<Receipt />}
             color="#2196f3"
-            trend={8}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Active Customers"
-            value={stats.activeCustomers}
+            title="Avg Delivery Time"
+            value={`${stats.averageDeliveryTime}m`}
             icon={<People />}
             color="#ff9800"
           />
@@ -173,7 +186,11 @@ const Dashboard: React.FC = () => {
                 <Typography variant="h4" sx={{ fontWeight: 700, mr: 2 }}>
                   {stats.completionRate}%
                 </Typography>
-                <Chip label="Excellent" color="success" size="small" />
+                <Chip 
+                  label={stats.completionRate >= 90 ? "Excellent" : stats.completionRate >= 70 ? "Good" : "Needs Improvement"} 
+                  color={stats.completionRate >= 90 ? "success" : stats.completionRate >= 70 ? "primary" : "warning"} 
+                  size="small" 
+                />
               </Box>
               <LinearProgress
                 variant="determinate"
@@ -181,7 +198,7 @@ const Dashboard: React.FC = () => {
                 sx={{ height: 8, borderRadius: 4, backgroundColor: '#e0e0e0' }}
               />
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Target: 90% • Above target by 4%
+                Target: 90%
               </Typography>
             </CardContent>
           </Card>
@@ -196,15 +213,19 @@ const Dashboard: React.FC = () => {
                 <Typography variant="h4" sx={{ fontWeight: 700, mr: 2 }}>
                   {stats.averageOrderTime}m
                 </Typography>
-                <Chip label="Good" color="primary" size="small" />
+                <Chip 
+                  label={stats.averageOrderTime <= 5 ? "Excellent" : stats.averageOrderTime <= 8 ? "Good" : "Needs Improvement"} 
+                  color={stats.averageOrderTime <= 5 ? "success" : stats.averageOrderTime <= 8 ? "primary" : "warning"} 
+                  size="small" 
+                />
               </Box>
               <LinearProgress
                 variant="determinate"
-                value={(stats.averageOrderTime / 5) * 100}
+                value={Math.min((stats.averageOrderTime / 10) * 100, 100)}
                 sx={{ height: 8, borderRadius: 4, backgroundColor: '#e0e0e0' }}
               />
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Target: 5m • 36% faster than target
+                Target: 5m
               </Typography>
             </CardContent>
           </Card>
@@ -231,18 +252,8 @@ const Dashboard: React.FC = () => {
         </Grid>
 
         {/* Quick Actions */}
-        <Grid item xs={12} md={6}>
-          <QuickActions />
-        </Grid>
-
-        {/* Recent Orders */}
-        <Grid item xs={12} md={6}>
-          <RecentOrders />
-        </Grid>
-
-        {/* Inventory Alerts */}
         <Grid item xs={12}>
-          <InventoryAlerts />
+          <QuickActions />
         </Grid>
       </Grid>
     </Box>

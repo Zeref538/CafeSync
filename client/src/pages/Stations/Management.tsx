@@ -1,119 +1,87 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
   Card,
   CardContent,
   Grid,
-  Button,
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
   Avatar,
   Chip,
   LinearProgress,
   Divider,
-  Paper,
   Alert,
 } from '@mui/material';
 import {
   TrendingUp,
   People,
   Inventory,
-  Receipt,
   Warning,
   CheckCircle,
-  Timer,
-  AttachMoney,
 } from '@mui/icons-material';
 import SalesChart from '../../components/Charts/SalesChart';
 import WeatherWidget from '../../components/Widgets/WeatherWidget';
 
 const Management: React.FC = () => {
-  const [selectedTab, setSelectedTab] = useState(0);
-
-  // Mock management data
-  const managementData = {
+  const [managementData, setManagementData] = useState({
     todayStats: {
-      sales: 1247.50,
-      orders: 89,
-      customers: 156,
-      averageOrderValue: 14.02,
+      sales: 0,
+      orders: 0,
+      averageDeliveryTime: 0,
+      averageOrderValue: 0,
     },
-    staffPerformance: [
-      {
-        name: 'Sarah Johnson',
-        role: 'Manager',
-        ordersCompleted: 12,
-        averageOrderTime: 2.8,
-        customerRating: 4.9,
-        salesGenerated: 125.50,
-        efficiency: 0.95,
-      },
-      {
-        name: 'Mike Chen',
-        role: 'Barista',
-        ordersCompleted: 45,
-        averageOrderTime: 3.2,
-        customerRating: 4.8,
-        salesGenerated: 450.75,
-        efficiency: 0.88,
-      },
-      {
-        name: 'Alex Rodriguez',
-        role: 'Kitchen Staff',
-        ordersCompleted: 32,
-        averageOrderTime: 2.5,
-        customerRating: 4.7,
-        salesGenerated: 320.25,
-        efficiency: 0.92,
-      },
-    ],
-    alerts: [
-      {
-        type: 'warning',
-        title: 'Low Stock Alert',
-        message: 'Whole Milk is running low (3 gallons remaining)',
-        priority: 'high',
-        timestamp: '2024-01-20T14:30:00Z',
-      },
-      {
-        type: 'info',
-        title: 'Weather Update',
-        message: 'Sunny weather expected to increase cold drink demand by 25%',
-        priority: 'medium',
-        timestamp: '2024-01-20T14:25:00Z',
-      },
-      {
-        type: 'success',
-        title: 'Goal Achieved',
-        message: 'Daily sales target exceeded by 12%',
-        priority: 'low',
-        timestamp: '2024-01-20T14:20:00Z',
-      },
-    ],
-    inventoryAlerts: [
-      {
-        item: 'Whole Milk',
-        currentStock: 3,
-        minStock: 5,
-        status: 'critical',
-      },
-      {
-        item: 'Vanilla Syrup',
-        currentStock: 1,
-        minStock: 3,
-        status: 'critical',
-      },
-      {
-        item: 'Coffee Beans',
-        currentStock: 8,
-        minStock: 10,
-        status: 'warning',
-      },
-    ],
-  };
+    staffPerformance: [],
+    alerts: [],
+    inventoryAlerts: [],
+  });
+
+  // Fetch real management data
+  useEffect(() => {
+    const fetchManagementData = async () => {
+      try {
+        // Fetch dashboard data
+        const dashboardResponse = await fetch('http://localhost:5000/api/analytics/dashboard');
+        if (dashboardResponse.ok) {
+          const dashboardData = await dashboardResponse.json();
+          setManagementData(prev => ({
+            ...prev,
+            todayStats: {
+              sales: dashboardData.todaySales,
+              orders: dashboardData.todayOrders,
+              averageDeliveryTime: dashboardData.averageDeliveryTime || 0,
+              averageOrderValue: dashboardData.todayOrders > 0 ? 
+                dashboardData.todaySales / dashboardData.todayOrders : 0,
+            },
+          }));
+        }
+
+        // Fetch staff performance data
+        const staffResponse = await fetch('http://localhost:5000/api/analytics/staff');
+        if (staffResponse.ok) {
+          const staffData = await staffResponse.json();
+          setManagementData(prev => ({
+            ...prev,
+            staffPerformance: staffData.data?.staffPerformance || [],
+          }));
+        }
+
+        // For now, keep alerts and inventory alerts empty
+        // These will be populated by real data in the future
+        setManagementData(prev => ({
+          ...prev,
+          alerts: [],
+          inventoryAlerts: [],
+        }));
+      } catch (error) {
+        console.error('Error fetching management data:', error);
+        // Keep data at default values (0/empty)
+      }
+    };
+
+    fetchManagementData();
+  }, []);
 
   const getAlertColor = (type: string) => {
     const colors: Record<string, string> = {
@@ -189,10 +157,10 @@ const Management: React.FC = () => {
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 700, color: '#ff9800' }}>
-                {managementData.todayStats.customers}
+                {managementData.todayStats.averageDeliveryTime}m
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Active Customers
+                Avg Delivery Time
               </Typography>
             </CardContent>
           </Card>
@@ -247,54 +215,62 @@ const Management: React.FC = () => {
                 Staff Performance
               </Typography>
               
-              <List sx={{ p: 0 }}>
-                {managementData.staffPerformance.map((staff, index) => (
-                  <React.Fragment key={staff.name}>
-                    <ListItem sx={{ px: 0, py: 2 }}>
-                      <Avatar sx={{ mr: 2, backgroundColor: '#8B4513' }}>
-                        {staff.name.split(' ').map(n => n[0]).join('')}
-                      </Avatar>
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                              {staff.name}
-                            </Typography>
-                            <Chip
-                              label={staff.role}
-                              size="small"
-                              sx={{ fontWeight: 500, textTransform: 'capitalize' }}
-                            />
-                          </Box>
-                        }
-                        secondary={
-                          <Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                              {staff.ordersCompleted} orders • {staff.averageOrderTime}min avg • {staff.customerRating}/5 rating
-                            </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                Efficiency: {(staff.efficiency * 100).toFixed(0)}%
+              {managementData.staffPerformance.length > 0 ? (
+                <List sx={{ p: 0 }}>
+                  {managementData.staffPerformance.map((staff: any, index: number) => (
+                    <React.Fragment key={staff.staffId || index}>
+                      <ListItem sx={{ px: 0, py: 2 }}>
+                        <Avatar sx={{ mr: 2, backgroundColor: '#8B4513' }}>
+                          {staff.name ? staff.name.split(' ').map((n: string) => n[0]).join('') : 'S'}
+                        </Avatar>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                {staff.name || 'Staff Member'}
                               </Typography>
-                              <LinearProgress
-                                variant="determinate"
-                                value={staff.efficiency * 100}
-                                sx={{ flex: 1, height: 6, borderRadius: 3 }}
+                              <Chip
+                                label={staff.role || 'Staff'}
+                                size="small"
+                                sx={{ fontWeight: 500, textTransform: 'capitalize' }}
                               />
                             </Box>
-                          </Box>
-                        }
-                      />
-                      <ListItemSecondaryAction>
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#8B4513' }}>
-                          ₱{staff.salesGenerated.toFixed(2)}
-                        </Typography>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                    {index < managementData.staffPerformance.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </List>
+                          }
+                          secondary={
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                {staff.ordersCompleted || 0} orders • {staff.averageOrderTime || 0}min avg • {staff.customerRating || 0}/5 rating
+                              </Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                  Efficiency: {((staff.efficiency || 0) * 100).toFixed(0)}%
+                                </Typography>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={(staff.efficiency || 0) * 100}
+                                  sx={{ flex: 1, height: 6, borderRadius: 3 }}
+                                />
+                              </Box>
+                            </Box>
+                          }
+                        />
+                        <Box sx={{ textAlign: 'right' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 700, color: '#8B4513' }}>
+                            ₱{(staff.salesGenerated || 0).toFixed(2)}
+                          </Typography>
+                        </Box>
+                      </ListItem>
+                      {index < managementData.staffPerformance.length - 1 && <Divider />}
+                    </React.Fragment>
+                  ))}
+                </List>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No staff performance data available
+                  </Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -308,52 +284,60 @@ const Management: React.FC = () => {
                 Inventory Alerts
               </Typography>
               
-              <List sx={{ p: 0 }}>
-                {managementData.inventoryAlerts.map((item, index) => (
-                  <React.Fragment key={item.item}>
-                    <ListItem sx={{ px: 0, py: 2 }}>
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                              {item.item}
-                            </Typography>
-                            <Chip
-                              label={item.status}
-                              size="small"
-                              sx={{
-                                backgroundColor: `${getStockStatusColor(item.status)}20`,
-                                color: getStockStatusColor(item.status),
-                                fontWeight: 500,
-                                textTransform: 'capitalize',
-                              }}
-                            />
-                          </Box>
-                        }
-                        secondary={
-                          <Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                              Current: {item.currentStock} • Min: {item.minStock}
-                            </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                Stock Level
+              {managementData.inventoryAlerts.length > 0 ? (
+                <List sx={{ p: 0 }}>
+                  {managementData.inventoryAlerts.map((item: any, index: number) => (
+                    <React.Fragment key={item.item || index}>
+                      <ListItem sx={{ px: 0, py: 2 }}>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                {item.item}
                               </Typography>
-                              <LinearProgress
-                                variant="determinate"
-                                value={(item.currentStock / item.minStock) * 100}
-                                color={item.status === 'critical' ? 'error' : item.status === 'warning' ? 'warning' : 'success'}
-                                sx={{ flex: 1, height: 6, borderRadius: 3 }}
+                              <Chip
+                                label={item.status}
+                                size="small"
+                                sx={{
+                                  backgroundColor: `${getStockStatusColor(item.status)}20`,
+                                  color: getStockStatusColor(item.status),
+                                  fontWeight: 500,
+                                  textTransform: 'capitalize',
+                                }}
                               />
                             </Box>
-                          </Box>
-                        }
-                      />
-                    </ListItem>
-                    {index < managementData.inventoryAlerts.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </List>
+                          }
+                          secondary={
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                Current: {item.currentStock} • Min: {item.minStock}
+                              </Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                  Stock Level
+                                </Typography>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={(item.currentStock / item.minStock) * 100}
+                                  color={item.status === 'critical' ? 'error' : item.status === 'warning' ? 'warning' : 'success'}
+                                  sx={{ flex: 1, height: 6, borderRadius: 3 }}
+                                />
+                              </Box>
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                      {index < managementData.inventoryAlerts.length - 1 && <Divider />}
+                    </React.Fragment>
+                  ))}
+                </List>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No inventory alerts
+                  </Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -367,53 +351,61 @@ const Management: React.FC = () => {
                 System Alerts
               </Typography>
               
-              <List sx={{ p: 0 }}>
-                {managementData.alerts.map((alert, index) => (
-                  <React.Fragment key={index}>
-                    <ListItem sx={{ px: 0, py: 2 }}>
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 2,
-                          p: 2,
-                          backgroundColor: `${getAlertColor(alert.type)}10`,
-                          borderRadius: 2,
-                          border: `1px solid ${getAlertColor(alert.type)}30`,
-                        }}
-                      >
-                        <Box sx={{ color: getAlertColor(alert.type) }}>
-                          {getAlertIcon(alert.type)}
-                        </Box>
-                        <Box sx={{ flex: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                              {alert.title}
-                            </Typography>
-                            <Chip
-                              label={alert.priority}
-                              size="small"
-                              sx={{
-                                backgroundColor: `${getPriorityColor(alert.priority)}20`,
-                                color: getPriorityColor(alert.priority),
-                                fontWeight: 500,
-                                textTransform: 'capitalize',
-                              }}
-                            />
+              {managementData.alerts.length > 0 ? (
+                <List sx={{ p: 0 }}>
+                  {managementData.alerts.map((alert: any, index: number) => (
+                    <React.Fragment key={index}>
+                      <ListItem sx={{ px: 0, py: 2 }}>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            p: 2,
+                            backgroundColor: `${getAlertColor(alert.type)}10`,
+                            borderRadius: 2,
+                            border: `1px solid ${getAlertColor(alert.type)}30`,
+                          }}
+                        >
+                          <Box sx={{ color: getAlertColor(alert.type) }}>
+                            {getAlertIcon(alert.type)}
                           </Box>
-                          <Typography variant="body2" color="text.secondary">
-                            {alert.message}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(alert.timestamp).toLocaleString()}
-                          </Typography>
+                          <Box sx={{ flex: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                {alert.title}
+                              </Typography>
+                              <Chip
+                                label={alert.priority}
+                                size="small"
+                                sx={{
+                                  backgroundColor: `${getPriorityColor(alert.priority)}20`,
+                                  color: getPriorityColor(alert.priority),
+                                  fontWeight: 500,
+                                  textTransform: 'capitalize',
+                                }}
+                              />
+                            </Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {alert.message}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(alert.timestamp).toLocaleString()}
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                    </ListItem>
-                    {index < managementData.alerts.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </List>
+                      </ListItem>
+                      {index < managementData.alerts.length - 1 && <Divider />}
+                    </React.Fragment>
+                  ))}
+                </List>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No system alerts
+                  </Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>

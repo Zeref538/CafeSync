@@ -15,7 +15,6 @@ import {
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
-  Receipt as OrdersIcon,
   Inventory as InventoryIcon,
   Analytics as AnalyticsIcon,
   Settings as SettingsIcon,
@@ -59,14 +58,6 @@ const Layout: React.FC = () => {
     ];
 
     const roleBasedItems = [
-      {
-        text: 'Orders',
-        icon: <OrdersIcon />,
-        path: '/orders',
-        permission: 'orders',
-        badge: 3, // Mock notification count
-        color: undefined,
-      },
       {
         text: 'Inventory',
         icon: <InventoryIcon />,

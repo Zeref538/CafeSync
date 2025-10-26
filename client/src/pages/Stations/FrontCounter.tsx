@@ -34,14 +34,17 @@ import {
   Delete,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const FrontCounter: React.FC = () => {
   const { joinStation, emitOrderUpdate } = useSocket();
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [currentOrder, setCurrentOrder] = useState<any[]>([]);
   const [customerInfo, setCustomerInfo] = useState({
     tableNumber: '', // optional; leave blank for takeout
+    paymentMethod: 'cash', // default payment method
   });
   const [customizationOpen, setCustomizationOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
@@ -189,6 +192,8 @@ const FrontCounter: React.FC = () => {
       items: currentOrder,
       total: getTotalPrice(),
       station: 'front-counter',
+      paymentMethod: customerInfo.paymentMethod,
+      staffId: user?.id || 'anonymous',
       timestamp: new Date().toISOString(),
     };
 
@@ -222,20 +227,15 @@ const FrontCounter: React.FC = () => {
 
         // Reset form
         setCurrentOrder([]);
-        setCustomerInfo({ tableNumber: '' });
+        setCustomerInfo({ tableNumber: '', paymentMethod: 'cash' });
 
-        // Show success message
-        alert('Order placed successfully!');
         console.log('Order placed successfully:', createdOrder);
       } else {
         const errorText = await response.text();
         console.error('Failed to place order:', response.status, errorText);
-        alert(`Failed to place order: ${response.status}`);
       }
     } catch (error) {
       console.error('Error placing order:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Error placing order: ${errorMessage}`);
     }
   };
 
@@ -341,7 +341,22 @@ const FrontCounter: React.FC = () => {
                   value={customerInfo.tableNumber}
                   onChange={(e) => setCustomerInfo(prev => ({ ...prev, tableNumber: e.target.value }))}
                   inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
+                  sx={{ mb: 2 }}
                 />
+                <FormControl fullWidth size="small">
+                  <InputLabel id="payment-method-label">Payment Method</InputLabel>
+                  <Select
+                    labelId="payment-method-label"
+                    id="payment-method-select"
+                    value={customerInfo.paymentMethod}
+                    label="Payment Method"
+                    onChange={(e) => setCustomerInfo(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                  >
+                    <MenuItem value="cash">Cash</MenuItem>
+                    <MenuItem value="card">Card</MenuItem>
+                    <MenuItem value="mobile">Mobile Payment</MenuItem>
+                  </Select>
+                </FormControl>
               </Box>
 
               <Divider sx={{ my: 2 }} />

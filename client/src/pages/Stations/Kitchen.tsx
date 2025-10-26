@@ -6,12 +6,8 @@ import {
   CardContent,
   Grid,
   List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
   Button,
   Chip,
-  Avatar,
   LinearProgress,
   Divider,
   Paper,
@@ -20,8 +16,6 @@ import {
   Restaurant,
   CheckCircle,
   AccessTime,
-  Warning,
-  Timer,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
 
@@ -29,7 +23,19 @@ interface KitchenOrder {
   id: string;
   orderNumber: number;
   customer: string;
-  items: Array<{ name: string; quantity: number; category: string }>;
+  items: Array<{ 
+    name: string; 
+    quantity: number; 
+    category?: string;
+    customizations?: {
+      size: string;
+      milk: string;
+      extras: string[];
+      notes: string;
+    };
+    unitPrice?: number;
+    price?: number;
+  }>;
   status: 'pending' | 'preparing' | 'ready' | 'completed';
   station: string;
   totalAmount: number;
@@ -37,21 +43,29 @@ interface KitchenOrder {
   estimatedPrepTime: number;
   actualPrepTime?: number;
   priority: 'normal' | 'high' | 'urgent';
+  paymentMethod: string;
+  specialInstructions?: string;
+  kitchenNotes?: string;
 }
 
 const Kitchen: React.FC = () => {
-  const { socket, joinStation, emitOrderUpdate } = useSocket();
+  const { socket, joinStation, emitOrderUpdate, syncOrderData } = useSocket();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
 
-  // Load orders from server
+  // Load orders from server (only active orders for kitchen)
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/orders/station/kitchen');
+        // Fetch only non-completed orders for kitchen
+        const response = await fetch('http://localhost:5000/api/orders?status=pending,preparing,ready');
         if (response.ok) {
           const result = await response.json();
-          setOrders(result.data);
+          // Double filter to ensure no completed orders slip through
+          const kitchenOrders = result.data.filter((order: KitchenOrder) => 
+            order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
+          );
+          setOrders(kitchenOrders);
         }
       } catch (error) {
         console.error('Error fetching orders:', error);
@@ -67,22 +81,25 @@ const Kitchen: React.FC = () => {
       socket.on('order-update', (data) => {
         console.log('Kitchen received order update:', data);
         
-        // Add new order to kitchen if it's for kitchen station
-        if (data.station === 'kitchen' || data.station === 'front-counter') {
-          setOrders(prev => {
-            // Check if order already exists
-            const existingIndex = prev.findIndex(order => order.id === data.id);
-            if (existingIndex >= 0) {
-              // Update existing order
-              const updated = [...prev];
-              updated[existingIndex] = { ...updated[existingIndex], ...data };
-              return updated;
-            } else {
-              // Add new order
+        // Handle order updates for kitchen
+        setOrders(prev => {
+          // Check if order already exists
+          const existingIndex = prev.findIndex(order => order.id === data.id);
+          
+          if (existingIndex >= 0) {
+            // Update existing order
+            const updated = [...prev];
+            updated[existingIndex] = { ...updated[existingIndex], ...data };
+            // Filter out completed orders
+            return updated.filter(order => order.status !== 'completed');
+          } else {
+            // Add new order if it's pending/preparing/ready
+            if (data.status === 'pending' || data.status === 'preparing' || data.status === 'ready') {
               return [...prev, data];
             }
-          });
-        }
+            return prev;
+          }
+        });
       });
     }
 
@@ -93,39 +110,38 @@ const Kitchen: React.FC = () => {
     };
   }, [socket]);
 
-  const handleStatusChange = (orderId: string, newStatus: string) => {
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    // Update local state immediately for better UX
     setOrders(prev => prev.map(order =>
       order.id === orderId ? { ...order, status: newStatus as any } : order
     ));
 
-    // Emit status change via socket
-    emitOrderUpdate({
-      orderId,
-      status: newStatus,
-      station: 'kitchen',
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      // Sync with Firebase Functions for multi-device synchronization
+      await syncOrderData(orderId, 'kitchen', 'status_update', {
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+        actualPrepTime: newStatus === 'completed' ? 
+          Math.floor((Date.now() - new Date(orders.find(o => o.id === orderId)?.createdAt || Date.now()).getTime()) / 60000) : 
+          null
+      });
+
+      // Also emit via socket for real-time updates
+      emitOrderUpdate({
+        orderId,
+        status: newStatus,
+        station: 'kitchen',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      // Revert local state on error
+      setOrders(prev => prev.map(order =>
+        order.id === orderId ? { ...order, status: 'pending' as any } : order
+      ));
+    }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: '#ff9800',
-      preparing: '#2196f3',
-      ready: '#4caf50',
-      completed: '#9e9e9e',
-    };
-    return colors[status] || '#666';
-  };
-
-  const getStatusIcon = (status: string) => {
-    const icons: Record<string, React.ReactNode> = {
-      pending: <AccessTime />,
-      preparing: <Restaurant />,
-      ready: <CheckCircle />,
-      completed: <CheckCircle />,
-    };
-    return icons[status] || <AccessTime />;
-  };
 
   const getPriorityColor = (priority: string) => {
     const colors: Record<string, string> = {

@@ -8,7 +8,6 @@ import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 // Page components
 import Dashboard from './pages/Dashboard/Dashboard';
-import Orders from './pages/Orders/Orders';
 import Inventory from './pages/Inventory/Inventory';
 import Analytics from './pages/Analytics/Analytics';
 import Settings from './pages/Settings/Settings';
@@ -45,7 +44,6 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           
           {/* Core functionality */}
-          <Route path="orders" element={<Orders />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="settings" element={<Settings />} />

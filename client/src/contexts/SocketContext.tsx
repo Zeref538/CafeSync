@@ -10,6 +10,7 @@ interface SocketContextType {
   emitOrderUpdate: (data: any) => void;
   emitInventoryUpdate: (data: any) => void;
   emitAnalyticsUpdate: (data: any) => void;
+  syncOrderData: (orderId: string, station: string, action: string, data: any) => void;
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
@@ -124,6 +125,44 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     }
   };
 
+  const syncOrderData = async (orderId: string, station: string, action: string, data: any) => {
+    try {
+      // Call Firebase Function for data synchronization
+      const response = await fetch('https://us-central1-cafesync-3b25a.cloudfunctions.net/syncOrderData', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId,
+          station,
+          action,
+          data
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Order data synced successfully:', result);
+        
+        // Also emit via socket for real-time updates
+        if (socket) {
+          socket.emit('order-sync', {
+            orderId,
+            station,
+            action,
+            data,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } else {
+        console.error('Failed to sync order data:', response.status);
+      }
+    } catch (error) {
+      console.error('Error syncing order data:', error);
+    }
+  };
+
   const value: SocketContextType = {
     socket,
     isConnected,
@@ -132,6 +171,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     emitOrderUpdate,
     emitInventoryUpdate,
     emitAnalyticsUpdate,
+    syncOrderData,
   };
 
   return (

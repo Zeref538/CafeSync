@@ -2,62 +2,34 @@ const express = require('express');
 const router = express.Router();
 const moment = require('moment');
 
-// Mock analytics data
-let salesData = [
-  {
-    id: 'sale-1',
-    orderId: 'order-1',
-    customerId: 'customer-1',
-    amount: 12.50,
-    items: [
-      { name: 'Latte', price: 4.50, quantity: 1 },
-      { name: 'Croissant', price: 3.00, quantity: 1 },
-      { name: 'Cappuccino', price: 5.00, quantity: 1 }
-    ],
-    timestamp: moment().subtract(2, 'hours').toISOString(),
-    station: 'front-counter',
-    paymentMethod: 'card'
-  },
-  {
-    id: 'sale-2',
-    orderId: 'order-2',
-    customerId: 'customer-2',
-    amount: 8.75,
-    items: [
-      { name: 'Americano', price: 3.25, quantity: 1 },
-      { name: 'Muffin', price: 2.50, quantity: 1 },
-      { name: 'Tea', price: 3.00, quantity: 1 }
-    ],
-    timestamp: moment().subtract(1, 'hour').toISOString(),
-    station: 'front-counter',
-    paymentMethod: 'cash'
-  }
-];
+// Mock analytics data - START WITH EMPTY DATA
+let salesData = []; // Start with empty array - no mock data
 
-let staffPerformance = [
-  {
-    staffId: 'staff-1',
-    name: 'Sarah Johnson',
-    role: 'barista',
-    shiftStart: moment().startOf('day').add(6, 'hours').toISOString(),
-    shiftEnd: moment().startOf('day').add(14, 'hours').toISOString(),
-    ordersCompleted: 45,
-    averageOrderTime: 3.2,
-    customerRating: 4.8,
-    salesGenerated: 450.75
-  },
-  {
-    staffId: 'staff-2',
-    name: 'Mike Chen',
-    role: 'manager',
-    shiftStart: moment().startOf('day').add(8, 'hours').toISOString(),
-    shiftEnd: moment().startOf('day').add(16, 'hours').toISOString(),
-    ordersCompleted: 12,
-    averageOrderTime: 2.8,
-    customerRating: 4.9,
-    salesGenerated: 125.50
-  }
-];
+let staffPerformance = []; // Start with empty array - no mock data
+
+// Function to add sales data when orders are created
+function addSalesData(order) {
+  const sale = {
+    id: `sale-${order.id}`,
+    orderId: order.id,
+    customerId: order.customer || 'walk-in',
+    amount: order.totalAmount,
+    items: order.items.map(item => ({
+      name: item.name,
+      price: item.unitPrice || item.price,
+      quantity: item.quantity
+    })),
+    timestamp: order.createdAt,
+    station: order.station,
+    paymentMethod: order.paymentMethod,
+    staffId: order.staffId
+  };
+  
+  salesData.push(sale);
+}
+
+// Export the function so it can be used by other routes
+module.exports.addSalesData = addSalesData;
 
 // Get sales analytics
 router.get('/sales', (req, res) => {
@@ -264,6 +236,103 @@ router.get('/customers', (req, res) => {
   });
 });
 
+// Get dashboard summary data
+router.get('/dashboard', async (req, res) => {
+  try {
+    // Get today's sales data
+    const todayData = salesData.filter(sale => 
+      moment(sale.timestamp).isSame(moment(), 'day')
+    );
+    
+    // Calculate dashboard metrics
+    const todaySales = todayData.reduce((sum, sale) => sum + sale.amount, 0);
+    const todayOrders = todayData.length;
+    
+    // Calculate real average delivery time from actual orders
+    let averageDeliveryTime = 0;
+    if (todayOrders > 0) {
+      // Get all completed orders from today
+      const { getDb } = require('../firebase');
+      const db = getDb();
+      
+      if (db) {
+        // Query completed orders from today
+        const today = moment().startOf('day').toDate();
+        const tomorrow = moment().add(1, 'day').startOf('day').toDate();
+        
+        const completedOrdersSnap = await db.collection('orders')
+          .where('status', '==', 'completed')
+          .where('createdAt', '>=', today)
+          .where('createdAt', '<', tomorrow)
+          .get();
+        
+        const completedOrders = completedOrdersSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        if (completedOrders.length > 0) {
+          // Calculate actual delivery times
+          const deliveryTimes = completedOrders.map(order => {
+            const createdAt = new Date(order.createdAt);
+            const completedAt = new Date(order.completedAt || order.updatedAt || Date.now());
+            return (completedAt - createdAt) / 1000 / 60; // Convert to minutes
+          });
+          
+          averageDeliveryTime = deliveryTimes.reduce((sum, time) => sum + time, 0) / deliveryTimes.length;
+        }
+      } else {
+        // Fallback: calculate from in-memory orders
+        const { getOrders } = require('./orders');
+        if (typeof getOrders === 'function') {
+          const allOrders = getOrders();
+          const todayCompletedOrders = allOrders.filter(order => 
+            order.status === 'completed' && 
+            moment(order.createdAt).isSame(moment(), 'day')
+          );
+          
+          if (todayCompletedOrders.length > 0) {
+            const deliveryTimes = todayCompletedOrders.map(order => {
+              const createdAt = new Date(order.createdAt);
+              const completedAt = new Date(order.completedAt || order.updatedAt || Date.now());
+              return (completedAt - createdAt) / 1000 / 60; // Convert to minutes
+            });
+            
+            averageDeliveryTime = deliveryTimes.reduce((sum, time) => sum + time, 0) / deliveryTimes.length;
+          }
+        } else {
+          // Final fallback: use mock data for development
+          averageDeliveryTime = todayOrders > 0 ? 
+            todayData.reduce((sum, sale) => sum + (Math.random() * 3 + 2), 0) / todayOrders : 0;
+        }
+      }
+    }
+    
+    // Calculate completion rate
+    const completedOrders = todayData.length; // For now, assume all orders are completed
+    const completionRate = todayOrders > 0 ? Math.round((completedOrders / todayOrders) * 100) : 0;
+    
+    // Calculate average order time (mock data for now)
+    const averageOrderTime = todayOrders > 0 ? 
+      todayData.reduce((sum, sale) => sum + (Math.random() * 2 + 1), 0) / todayOrders : 0;
+    
+    // Mock inventory alerts (will be replaced with real inventory data)
+    const inventoryAlerts = 0; // Start with 0 alerts
+    
+    res.json({
+      todaySales: Math.round(todaySales * 100) / 100,
+      todayOrders,
+      averageDeliveryTime: Math.round(averageDeliveryTime * 100) / 100,
+      inventoryAlerts,
+      completionRate,
+      averageOrderTime: Math.round(averageOrderTime * 100) / 100
+    });
+  } catch (error) {
+    console.error('Error calculating dashboard metrics:', error);
+    res.status(500).json({ error: 'Failed to calculate dashboard metrics' });
+  }
+});
+
 // Helper function to get top selling items
 function getTopSellingItems(salesData) {
   const itemCounts = {};
@@ -285,3 +354,4 @@ function getTopSellingItems(salesData) {
 }
 
 module.exports = router;
+module.exports.addSalesData = addSalesData;

@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
   Card,
   CardContent,
   Grid,
-  Paper,
-  Tabs,
-  Tab,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -19,27 +18,67 @@ import SalesChart from '../../components/Charts/SalesChart';
 import WeatherWidget from '../../components/Widgets/WeatherWidget';
 
 const Analytics: React.FC = () => {
-  const [selectedTab, setSelectedTab] = useState(0);
+  const [analyticsData, setAnalyticsData] = useState<{
+    totalSales: number;
+    totalOrders: number;
+    averageOrderValue: number;
+    topSellingItems: Array<{ name: string; quantity: number; revenue: number }>;
+    hourlySales: Array<{ hour: string; sales: number }>;
+    loading: boolean;
+    error: string | null;
+  }>({
+    totalSales: 0,
+    totalOrders: 0,
+    averageOrderValue: 0,
+    topSellingItems: [],
+    hourlySales: [],
+    loading: true,
+    error: null
+  });
 
-  const analyticsData = {
-    totalSales: 1247.50,
-    totalOrders: 89,
-    averageOrderValue: 14.02,
-    topSellingItems: [
-      { name: 'Latte', sales: 45, revenue: 202.50 },
-      { name: 'Cappuccino', sales: 32, revenue: 136.00 },
-      { name: 'Americano', sales: 28, revenue: 98.00 },
-    ],
-    hourlySales: [
-      { hour: '6AM', sales: 120 },
-      { hour: '8AM', sales: 280 },
-      { hour: '10AM', sales: 450 },
-      { hour: '12PM', sales: 680 },
-      { hour: '2PM', sales: 520 },
-      { hour: '4PM', sales: 380 },
-      { hour: '6PM', sales: 220 },
-    ],
-  };
+  // Fetch analytics data from Firebase Functions
+  useEffect(() => {
+    const fetchAnalyticsData = async () => {
+      try {
+        setAnalyticsData(prev => ({ ...prev, loading: true, error: null }));
+        
+        // Call Firebase Function to get analytics data
+        const response = await fetch('http://localhost:5000/api/analytics/sales?period=today');
+        const result = await response.json();
+        
+        if (result.success) {
+          setAnalyticsData({
+            totalSales: result.data.totalSales,
+            totalOrders: result.data.totalOrders,
+            averageOrderValue: result.data.averageOrderValue,
+            topSellingItems: result.data.topSellingItems || [],
+            hourlySales: result.data.groupedData ? 
+              Object.entries(result.data.groupedData).map(([hour, data]: [string, any]) => ({
+                hour: hour,
+                sales: data.sales
+              })) : [],
+            loading: false,
+            error: null
+          });
+        } else {
+          throw new Error(result.error || 'Failed to fetch analytics data');
+        }
+      } catch (error) {
+        console.error('Error fetching analytics:', error);
+        setAnalyticsData(prev => ({
+          ...prev,
+          loading: false,
+          error: error instanceof Error ? error.message : 'Failed to load analytics data'
+        }));
+      }
+    };
+
+    fetchAnalyticsData();
+    
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchAnalyticsData, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const StatCard: React.FC<{
     title: string;
@@ -85,141 +124,163 @@ const Analytics: React.FC = () => {
         Analytics Dashboard
       </Typography>
 
-      {/* Key Metrics */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Total Sales"
-            value={`₱${analyticsData.totalSales.toFixed(2)}`}
-            icon={<AttachMoney />}
-            color="#4caf50"
-            trend={12}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Total Orders"
-            value={analyticsData.totalOrders}
-            icon={<Receipt />}
-            color="#2196f3"
-            trend={8}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Avg Order Value"
-            value={`₱${analyticsData.averageOrderValue.toFixed(2)}`}
-            icon={<TrendingUp />}
-            color="#ff9800"
-            trend={5}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Active Customers"
-            value={156}
-            icon={<People />}
-            color="#9c27b0"
-            trend={15}
-          />
-        </Grid>
-      </Grid>
+      {analyticsData.loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
+      )}
 
-      {/* Main Content */}
-      <Grid container spacing={3}>
-        {/* Sales Chart */}
-        <Grid item xs={12} lg={8}>
-          <Card sx={{ height: 400 }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Sales Overview
-              </Typography>
-              <SalesChart />
-            </CardContent>
-          </Card>
-        </Grid>
+      {analyticsData.error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {analyticsData.error}
+        </Alert>
+      )}
 
-        {/* Weather Widget */}
-        <Grid item xs={12} lg={4}>
-          <WeatherWidget />
-        </Grid>
+      {!analyticsData.loading && !analyticsData.error && (
+        <>
+          {/* Key Metrics */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="Total Sales"
+                value={`₱${analyticsData.totalSales.toFixed(2)}`}
+                icon={<AttachMoney />}
+                color="#4caf50"
+                trend={12}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="Total Orders"
+                value={analyticsData.totalOrders}
+                icon={<Receipt />}
+                color="#2196f3"
+                trend={8}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="Avg Order Value"
+                value={`₱${analyticsData.averageOrderValue.toFixed(2)}`}
+                icon={<TrendingUp />}
+                color="#ff9800"
+                trend={5}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <StatCard
+                title="Active Customers"
+                value={156}
+                icon={<People />}
+                color="#9c27b0"
+                trend={15}
+              />
+            </Grid>
+          </Grid>
 
-        {/* Top Selling Items */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Top Selling Items
-              </Typography>
-              {analyticsData.topSellingItems.map((item, index) => (
-                <Box key={item.name} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, mr: 2, minWidth: 24 }}>
-                    {index + 1}
+          {/* Main Content */}
+          <Grid container spacing={3}>
+            {/* Sales Chart */}
+            <Grid item xs={12} lg={8}>
+              <Card sx={{ height: 400 }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                    Sales Overview
                   </Typography>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                      {item.name}
-                    </Typography>
+                  <SalesChart />
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Weather Widget */}
+            <Grid item xs={12} lg={4}>
+              <WeatherWidget />
+            </Grid>
+
+            {/* Top Selling Items */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                    Top Selling Items
+                  </Typography>
+                  {analyticsData.topSellingItems.length > 0 ? (
+                    analyticsData.topSellingItems.map((item: any, index: number) => (
+                      <Box key={item.name} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, mr: 2, minWidth: 24 }}>
+                          {index + 1}
+                        </Typography>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                            {item.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {item.quantity} sold • ₱{item.revenue?.toFixed(2) || '0.00'} revenue
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ))
+                  ) : (
                     <Typography variant="body2" color="text.secondary">
-                      {item.sales} sales • ₱{item.revenue.toFixed(2)} revenue
+                      No sales data available
                     </Typography>
-                  </Box>
-                </Box>
-              ))}
-            </CardContent>
-          </Card>
-        </Grid>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
 
-        {/* Performance Metrics */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Performance Metrics
-              </Typography>
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Order Completion Rate
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{ flex: 1, height: 8, backgroundColor: '#e0e0e0', borderRadius: 4 }}>
-                    <Box sx={{ width: '94%', height: '100%', backgroundColor: '#4caf50', borderRadius: 4 }} />
-                  </Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    94%
+            {/* Performance Metrics */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                    Performance Metrics
                   </Typography>
-                </Box>
-              </Box>
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Average Prep Time
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{ flex: 1, height: 8, backgroundColor: '#e0e0e0', borderRadius: 4 }}>
-                    <Box sx={{ width: '64%', height: '100%', backgroundColor: '#2196f3', borderRadius: 4 }} />
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Order Completion Rate
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Box sx={{ flex: 1, height: 8, backgroundColor: '#e0e0e0', borderRadius: 4 }}>
+                        <Box sx={{ width: '94%', height: '100%', backgroundColor: '#4caf50', borderRadius: 4 }} />
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        94%
+                      </Typography>
+                    </Box>
                   </Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    3.2min
-                  </Typography>
-                </Box>
-              </Box>
-              <Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Customer Satisfaction
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{ flex: 1, height: 8, backgroundColor: '#e0e0e0', borderRadius: 4 }}>
-                    <Box sx={{ width: '96%', height: '100%', backgroundColor: '#ff9800', borderRadius: 4 }} />
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Average Prep Time
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Box sx={{ flex: 1, height: 8, backgroundColor: '#e0e0e0', borderRadius: 4 }}>
+                        <Box sx={{ width: '64%', height: '100%', backgroundColor: '#2196f3', borderRadius: 4 }} />
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        3.2min
+                      </Typography>
+                    </Box>
                   </Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    4.8/5
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Customer Satisfaction
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Box sx={{ flex: 1, height: 8, backgroundColor: '#e0e0e0', borderRadius: 4 }}>
+                        <Box sx={{ width: '96%', height: '100%', backgroundColor: '#ff9800', borderRadius: 4 }} />
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        4.8/5
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </>
+      )}
     </Box>
   );
 };

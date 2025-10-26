@@ -166,6 +166,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
       
+      // First check if it's a demo account
       const storedUsers = getStoredUsers();
       const userWithPassword = storedUsers[email];
       
@@ -188,7 +189,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         return true;
       } else {
-        toast.error('Invalid credentials');
+        toast.error('Invalid credentials. Please check your email and password.');
         return false;
       }
     } catch (error) {
