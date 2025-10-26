@@ -1,0 +1,174 @@
+[
+  {
+    "id": "1099e178-18e2-48ad-bd63-2aa7c988ff37",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": 2,
+        "name": "Cappuccino",
+        "basePrice": 4.25,
+        "unitPrice": 4.25,
+        "price": 4.25,
+        "quantity": 2,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3",
+    "totalAmount": 8.5,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T07:03:55.162Z",
+    "updatedAt": "2025-10-26T07:03:57.930Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T07:03:57.931Z",
+    "storedAt": "2025-10-26T07:03:57.931Z",
+    "analysisData": {
+      "totalPrepTime": 0.04613333333333333,
+      "orderValue": 8.5,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
+    }
+  },
+  {
+    "id": "aa32a0e8-7bd2-463a-b64f-be038e7e0116",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": 1,
+        "name": "Latte",
+        "basePrice": 4.5,
+        "unitPrice": 4.5,
+        "price": 4.5,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3",
+    "totalAmount": 4.5,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T07:04:29.072Z",
+    "updatedAt": "2025-10-26T07:04:31.397Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T07:04:31.397Z",
+    "storedAt": "2025-10-26T07:04:31.397Z",
+    "analysisData": {
+      "totalPrepTime": 0.03875,
+      "orderValue": 4.5,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
+    }
+  },
+  {
+    "id": "de784a20-3443-49f8-8683-5c20d00a0979",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": 1,
+        "name": "Latte",
+        "basePrice": 4.5,
+        "unitPrice": 4.5,
+        "price": 4.5,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3",
+    "totalAmount": 4.5,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T07:06:24.828Z",
+    "updatedAt": "2025-10-26T07:06:28.428Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T07:06:28.428Z",
+    "storedAt": "2025-10-26T07:06:28.428Z",
+    "analysisData": {
+      "totalPrepTime": 0.060000000000000005,
+      "orderValue": 4.5,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
+    }
+  },
+  {
+    "id": "a000421e-1090-4b65-8e62-4794b33a2858",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": 1,
+        "name": "Latte",
+        "basePrice": 4.5,
+        "unitPrice": 4.5,
+        "price": 4.5,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3",
+    "totalAmount": 4.5,
+    "estimatedPrepTime": 3,
+    "priority": "normal",
+    "createdAt": "2025-10-26T07:21:27.274Z",
+    "updatedAt": "2025-10-26T07:21:30.267Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-26T07:21:30.267Z",
+    "storedAt": "2025-10-26T07:21:30.267Z",
+    "analysisData": {
+      "totalPrepTime": 0.04988333333333333,
+      "orderValue": 4.5,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "GkX4ys7KgCMeob9USDvC8N7kimA3"
+    }
+  }
+]

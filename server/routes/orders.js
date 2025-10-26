@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const moment = require('moment');
 const { getDb } = require('../firebase');
 const { addSalesData } = require('./analytics');
+const completedOrdersStorage = require('../services/completedOrdersStorage');
 
 // Firestore collection reference
 const ORDERS_COLLECTION = 'orders';
@@ -35,6 +36,19 @@ router.get('/', async (req, res) => {
       // Fallback to in-memory storage
       const { status, station, limit = 50 } = req.query;
       let filteredOrders = [...orders];
+      
+      // Filter out completed orders that are stored in persistent storage
+      filteredOrders = await Promise.all(
+        filteredOrders.map(async (order) => {
+          if (order.status === 'completed') {
+            const isStored = await completedOrdersStorage.isOrderCompleted(order.id);
+            return isStored ? null : order; // Return null for stored completed orders
+          }
+          return order;
+        })
+      );
+      filteredOrders = filteredOrders.filter(order => order !== null);
+      
       if (status) {
         // Handle comma-separated status values (e.g., "pending,preparing,ready")
         const statusList = status.includes(',') ? status.split(',') : [status];
@@ -62,7 +76,19 @@ router.get('/', async (req, res) => {
     if (station) q = q.where('station', '==', station);
 
     const snap = await q.limit(parseInt(limit)).get();
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Filter out completed orders that are stored in persistent storage
+    data = await Promise.all(
+      data.map(async (order) => {
+        if (order.status === 'completed') {
+          const isStored = await completedOrdersStorage.isOrderCompleted(order.id);
+          return isStored ? null : order; // Return null for stored completed orders
+        }
+        return order;
+      })
+    );
+    data = data.filter(order => order !== null);
 
     res.json({ success: true, data, count: data.length });
   } catch (err) {
@@ -167,16 +193,35 @@ router.patch('/:id/status', async (req, res) => {
       }
       
       // Update order in memory
-      orders[orderIndex] = {
+      const updatedOrder = {
         ...orders[orderIndex],
         status,
         updatedAt: now,
         ...(status === 'completed' && { completedAt: now })
       };
       
+      orders[orderIndex] = updatedOrder;
+      
+      // Store completed order in persistent storage
+      if (status === 'completed') {
+        await completedOrdersStorage.storeCompletedOrder(updatedOrder);
+      }
+      
+      // Broadcast the update via socket
+      const { io } = require('../index');
+      if (io) {
+        io.emit('order-update', {
+          id: updatedOrder.id,
+          status: updatedOrder.status,
+          station: 'kitchen',
+          timestamp: now,
+          ...updatedOrder
+        });
+      }
+      
       return res.json({ 
         success: true, 
-        data: orders[orderIndex], 
+        data: updatedOrder, 
         message: 'Order status updated successfully' 
       });
     }
@@ -194,7 +239,26 @@ router.patch('/:id/status', async (req, res) => {
     await ref.set(updateData, { merge: true });
     await ref.collection('history').add({ status, timestamp: now, updatedBy: req.body.updatedBy || 'system' });
     const updated = await ref.get();
-    res.json({ success: true, data: { id: updated.id, ...updated.data() }, message: 'Order status updated successfully' });
+    const updatedOrder = { id: updated.id, ...updated.data() };
+    
+    // Store completed order in persistent storage
+    if (status === 'completed') {
+      await completedOrdersStorage.storeCompletedOrder(updatedOrder);
+    }
+    
+    // Broadcast the update via socket
+    const { io } = require('../index');
+    if (io) {
+      io.emit('order-update', {
+        id: updatedOrder.id,
+        status: updatedOrder.status,
+        station: 'kitchen',
+        timestamp: now,
+        ...updatedOrder
+      });
+    }
+    
+    res.json({ success: true, data: updatedOrder, message: 'Order status updated successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

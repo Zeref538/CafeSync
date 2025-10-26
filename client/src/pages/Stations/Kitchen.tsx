@@ -16,6 +16,7 @@ import {
   Restaurant,
   CheckCircle,
   AccessTime,
+  Refresh,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
 
@@ -52,26 +53,30 @@ const Kitchen: React.FC = () => {
   const { socket, joinStation, emitOrderUpdate, syncOrderData } = useSocket();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load orders from server (only active orders for kitchen)
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        // Fetch only non-completed orders for kitchen
-        const response = await fetch('http://localhost:5000/api/orders?status=pending,preparing,ready');
-        if (response.ok) {
-          const result = await response.json();
-          // Double filter to ensure no completed orders slip through
-          const kitchenOrders = result.data.filter((order: KitchenOrder) => 
-            order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
-          );
-          setOrders(kitchenOrders);
-        }
-      } catch (error) {
-        console.error('Error fetching orders:', error);
+  const fetchOrders = async () => {
+    try {
+      setIsRefreshing(true);
+      // Fetch only non-completed orders for kitchen
+      const response = await fetch('http://localhost:5000/api/orders?status=pending,preparing,ready');
+      if (response.ok) {
+        const result = await response.json();
+        // Double filter to ensure no completed orders slip through
+        const kitchenOrders = result.data.filter((order: KitchenOrder) => 
+          order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
+        );
+        setOrders(kitchenOrders);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchOrders();
   }, []);
 
@@ -90,10 +95,14 @@ const Kitchen: React.FC = () => {
             // Update existing order
             const updated = [...prev];
             updated[existingIndex] = { ...updated[existingIndex], ...data };
-            // Filter out completed orders
-            return updated.filter(order => order.status !== 'completed');
+            
+            // Always filter out completed orders - never show them in kitchen
+            return updated.filter(order => 
+              order.status !== 'completed' && 
+              (order.status === 'pending' || order.status === 'preparing' || order.status === 'ready')
+            );
           } else {
-            // Add new order if it's pending/preparing/ready
+            // Add new order only if it's pending/preparing/ready
             if (data.status === 'pending' || data.status === 'preparing' || data.status === 'ready') {
               return [...prev, data];
             }
@@ -112,12 +121,37 @@ const Kitchen: React.FC = () => {
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
     // Update local state immediately for better UX
-    setOrders(prev => prev.map(order =>
-      order.id === orderId ? { ...order, status: newStatus as any } : order
-    ));
+    setOrders(prev => {
+      const updated = prev.map(order =>
+        order.id === orderId ? { ...order, status: newStatus as any } : order
+      );
+      
+      // If order is completed, remove it from kitchen view immediately
+      if (newStatus === 'completed') {
+        return updated.filter(order => order.id !== orderId);
+      }
+      
+      return updated;
+    });
 
     try {
-      // Sync with Firebase Functions for multi-device synchronization
+      // FIRST: Update the server's API endpoint (this handles local storage and socket broadcast)
+      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          updatedBy: 'kitchen'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server update failed: ${response.status}`);
+      }
+
+      // SECOND: Sync with Firebase Functions for multi-device synchronization
       await syncOrderData(orderId, 'kitchen', 'status_update', {
         status: newStatus,
         updatedAt: new Date().toISOString(),
@@ -126,19 +160,15 @@ const Kitchen: React.FC = () => {
           null
       });
 
-      // Also emit via socket for real-time updates
-      emitOrderUpdate({
-        orderId,
-        status: newStatus,
-        station: 'kitchen',
-        timestamp: new Date().toISOString(),
-      });
+      console.log(`Order ${orderId} status updated to ${newStatus}`);
     } catch (error) {
       console.error('Error updating order status:', error);
-      // Revert local state on error
-      setOrders(prev => prev.map(order =>
-        order.id === orderId ? { ...order, status: 'pending' as any } : order
-      ));
+      // Revert local state on error - but don't re-add completed orders
+      if (newStatus !== 'completed') {
+        setOrders(prev => prev.map(order =>
+          order.id === orderId ? { ...order, status: 'pending' as any } : order
+        ));
+      }
     }
   };
 
@@ -161,6 +191,9 @@ const Kitchen: React.FC = () => {
 
   React.useEffect(() => {
     joinStation('kitchen');
+    
+    // Refresh orders when joining kitchen station to ensure latest data
+    fetchOrders();
   }, [joinStation]);
 
   const pendingOrders = orders.filter(order => order.status === 'pending');
@@ -169,9 +202,20 @@ const Kitchen: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
-        Kitchen Station
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+          Kitchen Station
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<Refresh />}
+          onClick={fetchOrders}
+          disabled={isRefreshing}
+          sx={{ textTransform: 'none' }}
+        >
+          {isRefreshing ? 'Refreshing...' : 'Refresh Orders'}
+        </Button>
+      </Box>
 
       {/* Kitchen Stats */}
       <Grid container spacing={3} sx={{ mb: 4 }}>

@@ -34,22 +34,26 @@ const Dashboard: React.FC = () => {
     completionRate: 0,
     averageOrderTime: 0,
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Fetch real data from API
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const response = await fetch('http://localhost:5000/api/analytics/dashboard');
-        if (response.ok) {
-          const data = await response.json();
-          setStats(data);
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        // Keep stats at 0 if API fails
+  const fetchDashboardData = async () => {
+    try {
+      setIsRefreshing(true);
+      const response = await fetch('http://localhost:5000/api/analytics/dashboard');
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      // Keep stats at 0 if API fails
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchDashboardData();
   }, []);
 
@@ -116,7 +120,11 @@ const Dashboard: React.FC = () => {
                 variant="outlined"
               />
             )}
-            <IconButton color="primary">
+            <IconButton 
+              color="primary" 
+              onClick={fetchDashboardData}
+              disabled={isRefreshing}
+            >
               <Refresh />
             </IconButton>
           </Box>

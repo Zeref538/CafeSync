@@ -271,3 +271,171 @@ exports.getAnalyticsData = onCall(async (request) => {
     throw new Error(`Failed to get analytics data: ${error.message}`);
   }
 });
+
+// Store completed order for analysis
+exports.storeCompletedOrder = onCall(async (request) => {
+  try {
+    const { order } = request.data;
+    
+    if (!order || !order.id) {
+      throw new Error("Order data with ID is required");
+    }
+
+    const db = admin.firestore();
+    const storage = admin.storage();
+    
+    const completedOrder = {
+      ...order,
+      completedAt: new Date().toISOString(),
+      storedAt: new Date().toISOString(),
+      analysisData: {
+        totalPrepTime: calculatePrepTime(order),
+        orderValue: order.totalAmount,
+        itemCount: order.items.length,
+        customerType: order.customer === 'Takeout' ? 'takeout' : 'dine-in',
+        paymentMethod: order.paymentMethod,
+        staffId: order.staffId
+      }
+    };
+
+    // Store in Firestore
+    await db.collection('completedOrders').doc(order.id).set(completedOrder);
+
+    // Store as JSON file in Firebase Storage for backup/analysis
+    const fileName = `completed-orders/${new Date().toISOString().split('T')[0]}/${order.id}.json`;
+    const file = storage.bucket().file(fileName);
+    
+    await file.save(JSON.stringify(completedOrder, null, 2), {
+      metadata: {
+        contentType: 'application/json',
+        metadata: {
+          orderId: order.id,
+          completedAt: completedOrder.completedAt,
+          orderNumber: order.orderNumber?.toString() || 'unknown'
+        }
+      }
+    });
+
+    logger.info("Completed order stored", {orderId: order.id, fileName});
+    return {
+      success: true,
+      message: 'Completed order stored successfully',
+      orderId: order.id
+    };
+  } catch (error) {
+    logger.error("Error storing completed order", error);
+    throw new Error(`Failed to store completed order: ${error.message}`);
+  }
+});
+
+// Get completed orders analytics
+exports.getCompletedOrdersAnalytics = onCall(async (request) => {
+  try {
+    const { startDate, endDate } = request.data || {};
+    
+    const db = admin.firestore();
+    let query = db.collection('completedOrders').orderBy('completedAt', 'desc');
+    
+    if (startDate) {
+      query = query.where('completedAt', '>=', startDate);
+    }
+    if (endDate) {
+      query = query.where('completedAt', '<=', endDate);
+    }
+    
+    const snapshot = await query.limit(1000).get();
+    const completedOrders = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    if (completedOrders.length === 0) {
+      return {
+        success: true,
+        data: {
+          totalOrders: 0,
+          totalRevenue: 0,
+          averageOrderValue: 0,
+          averagePrepTime: 0,
+          topItems: [],
+          paymentMethods: {},
+          customerTypes: {},
+          hourlyDistribution: {}
+        }
+      };
+    }
+
+    // Calculate analytics
+    const totalRevenue = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const averageOrderValue = totalRevenue / completedOrders.length;
+    
+    const prepTimes = completedOrders.map(order => order.analysisData?.totalPrepTime || 0);
+    const averagePrepTime = prepTimes.reduce((sum, time) => sum + time, 0) / prepTimes.length;
+
+    // Top items analysis
+    const itemCounts = {};
+    completedOrders.forEach(order => {
+      order.items.forEach(item => {
+        const key = item.name;
+        itemCounts[key] = (itemCounts[key] || 0) + item.quantity;
+      });
+    });
+    const topItems = Object.entries(itemCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10)
+      .map(([name, count]) => ({ name, count }));
+
+    // Payment methods
+    const paymentMethods = {};
+    completedOrders.forEach(order => {
+      const method = order.paymentMethod || 'unknown';
+      paymentMethods[method] = (paymentMethods[method] || 0) + 1;
+    });
+
+    // Customer types
+    const customerTypes = {};
+    completedOrders.forEach(order => {
+      const type = order.analysisData?.customerType || 'unknown';
+      customerTypes[type] = (customerTypes[type] || 0) + 1;
+    });
+
+    // Hourly distribution
+    const hourlyDistribution = {};
+    completedOrders.forEach(order => {
+      const hour = new Date(order.completedAt).getHours().toString().padStart(2, '0');
+      hourlyDistribution[hour] = (hourlyDistribution[hour] || 0) + 1;
+    });
+
+    const analyticsData = {
+      totalOrders: completedOrders.length,
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      averageOrderValue: Math.round(averageOrderValue * 100) / 100,
+      averagePrepTime: Math.round(averagePrepTime * 100) / 100,
+      topItems,
+      paymentMethods,
+      customerTypes,
+      hourlyDistribution
+    };
+
+    logger.info("Completed orders analytics retrieved", {count: completedOrders.length});
+    return {
+      success: true,
+      data: analyticsData,
+      count: completedOrders.length
+    };
+  } catch (error) {
+    logger.error("Error retrieving completed orders analytics", error);
+    throw new Error(`Analytics retrieval failed: ${error.message}`);
+  }
+});
+
+// Helper function to calculate prep time
+function calculatePrepTime(order) {
+  try {
+    const createdAt = new Date(order.createdAt);
+    const completedAt = new Date(order.completedAt || order.updatedAt);
+    return (completedAt - createdAt) / 1000 / 60; // Convert to minutes
+  } catch (error) {
+    return 0;
+  }
+}

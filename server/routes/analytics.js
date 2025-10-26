@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const moment = require('moment');
+const completedOrdersStorage = require('../services/completedOrdersStorage');
 
 // Mock analytics data - START WITH EMPTY DATA
 let salesData = []; // Start with empty array - no mock data
@@ -32,10 +33,64 @@ function addSalesData(order) {
 module.exports.addSalesData = addSalesData;
 
 // Get sales analytics
-router.get('/sales', (req, res) => {
+router.get('/sales', async (req, res) => {
   const { period = 'today', groupBy = 'hour' } = req.query;
   
   let filteredData = [...salesData];
+  
+  // Also get completed orders for the period
+  let completedOrders = [];
+  try {
+    let dateRange = null;
+    switch (period) {
+      case 'today':
+        dateRange = {
+          start: moment().startOf('day').toISOString(),
+          end: moment().endOf('day').toISOString()
+        };
+        break;
+      case 'week':
+        dateRange = {
+          start: moment().startOf('week').toISOString(),
+          end: moment().endOf('week').toISOString()
+        };
+        break;
+      case 'month':
+        dateRange = {
+          start: moment().startOf('month').toISOString(),
+          end: moment().endOf('month').toISOString()
+        };
+        break;
+    }
+    
+    if (dateRange) {
+      completedOrders = await completedOrdersStorage.getCompletedOrders(dateRange);
+    }
+  } catch (error) {
+    console.error('Error getting completed orders for sales analytics:', error);
+  }
+  
+  // Add completed orders that aren't already in salesData
+  completedOrders.forEach(completedOrder => {
+    const existsInSales = salesData.some(sale => sale.orderId === completedOrder.id);
+    if (!existsInSales) {
+      filteredData.push({
+        id: `sale-${completedOrder.id}`,
+        orderId: completedOrder.id,
+        customerId: completedOrder.customer || 'walk-in',
+        amount: completedOrder.totalAmount,
+        items: completedOrder.items.map(item => ({
+          name: item.name,
+          price: item.unitPrice || item.price,
+          quantity: item.quantity
+        })),
+        timestamp: completedOrder.createdAt,
+        station: completedOrder.station,
+        paymentMethod: completedOrder.paymentMethod,
+        staffId: completedOrder.staffId
+      });
+    }
+  });
   
   // Filter by period
   switch (period) {
@@ -239,14 +294,45 @@ router.get('/customers', (req, res) => {
 // Get dashboard summary data
 router.get('/dashboard', async (req, res) => {
   try {
-    // Get today's sales data
+    // Get today's sales data from both sources
     const todayData = salesData.filter(sale => 
       moment(sale.timestamp).isSame(moment(), 'day')
     );
     
-    // Calculate dashboard metrics
-    const todaySales = todayData.reduce((sum, sale) => sum + sale.amount, 0);
-    const todayOrders = todayData.length;
+    // Also get completed orders from today
+    const todayCompletedOrders = await completedOrdersStorage.getCompletedOrders({
+      start: moment().startOf('day').toISOString(),
+      end: moment().endOf('day').toISOString()
+    });
+    
+    // Combine sales data and completed orders
+    const allTodayOrders = [...todayData];
+    
+    // Add completed orders that aren't already in salesData
+    todayCompletedOrders.forEach(completedOrder => {
+      const existsInSales = todayData.some(sale => sale.orderId === completedOrder.id);
+      if (!existsInSales) {
+        allTodayOrders.push({
+          id: `sale-${completedOrder.id}`,
+          orderId: completedOrder.id,
+          customerId: completedOrder.customer || 'walk-in',
+          amount: completedOrder.totalAmount,
+          items: completedOrder.items.map(item => ({
+            name: item.name,
+            price: item.unitPrice || item.price,
+            quantity: item.quantity
+          })),
+          timestamp: completedOrder.createdAt,
+          station: completedOrder.station,
+          paymentMethod: completedOrder.paymentMethod,
+          staffId: completedOrder.staffId
+        });
+      }
+    });
+    
+    // Calculate dashboard metrics from combined data
+    const todaySales = allTodayOrders.reduce((sum, order) => sum + order.amount, 0);
+    const todayOrders = allTodayOrders.length;
     
     // Calculate real average delivery time from actual orders
     let averageDeliveryTime = 0;
@@ -309,12 +395,16 @@ router.get('/dashboard', async (req, res) => {
     }
     
     // Calculate completion rate
-    const completedOrders = todayData.length; // For now, assume all orders are completed
+    const completedOrders = todayCompletedOrders.length;
     const completionRate = todayOrders > 0 ? Math.round((completedOrders / todayOrders) * 100) : 0;
     
-    // Calculate average order time (mock data for now)
-    const averageOrderTime = todayOrders > 0 ? 
-      todayData.reduce((sum, sale) => sum + (Math.random() * 2 + 1), 0) / todayOrders : 0;
+    // Calculate average order time from completed orders
+    const averageOrderTime = todayCompletedOrders.length > 0 ? 
+      todayCompletedOrders.reduce((sum, order) => {
+        const createdAt = new Date(order.createdAt);
+        const completedAt = new Date(order.completedAt || order.updatedAt || Date.now());
+        return sum + ((completedAt - createdAt) / 1000 / 60); // Convert to minutes
+      }, 0) / todayCompletedOrders.length : 0;
     
     // Mock inventory alerts (will be replaced with real inventory data)
     const inventoryAlerts = 0; // Start with 0 alerts
@@ -352,6 +442,74 @@ function getTopSellingItems(salesData) {
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 10);
 }
+
+// Get analytics from completed orders
+router.get('/completed-orders', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    let dateRange = null;
+    if (startDate || endDate) {
+      dateRange = {
+        start: startDate ? moment(startDate).startOf('day').toISOString() : null,
+        end: endDate ? moment(endDate).endOf('day').toISOString() : null
+      };
+    }
+    
+    const analyticsData = await completedOrdersStorage.getAnalyticsData(dateRange);
+    
+    if (analyticsData) {
+      res.json({
+        success: true,
+        data: analyticsData,
+        dateRange: dateRange
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve analytics data'
+      });
+    }
+  } catch (error) {
+    console.error('Error getting completed orders analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve analytics data'
+    });
+  }
+});
+
+// Get completed orders for analysis
+router.get('/completed-orders/list', async (req, res) => {
+  try {
+    const { startDate, endDate, limit = 100 } = req.query;
+    
+    let dateRange = null;
+    if (startDate || endDate) {
+      dateRange = {
+        start: startDate ? moment(startDate).startOf('day').toISOString() : null,
+        end: endDate ? moment(endDate).endOf('day').toISOString() : null
+      };
+    }
+    
+    const completedOrders = await completedOrdersStorage.getCompletedOrders(dateRange);
+    const limitedOrders = completedOrders.slice(0, parseInt(limit));
+    
+    res.json({
+      success: true,
+      data: limitedOrders,
+      count: limitedOrders.length,
+      total: completedOrders.length,
+      dateRange: dateRange
+    });
+  } catch (error) {
+    console.error('Error getting completed orders list:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve completed orders'
+    });
+  }
+});
 
 module.exports = router;
 module.exports.addSalesData = addSalesData;
