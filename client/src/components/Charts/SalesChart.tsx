@@ -1,8 +1,6 @@
-import React from 'react';
-import { Box } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, CircularProgress } from '@mui/material';
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -11,18 +9,78 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
+import { API_ENDPOINTS } from '../../config/api';
 
-const SalesChart: React.FC = () => {
-  // Mock sales data - in production, this would come from the analytics API
-  const data = [
-    { time: '6AM', sales: 120, orders: 15 },
-    { time: '8AM', sales: 280, orders: 35 },
-    { time: '10AM', sales: 450, orders: 55 },
-    { time: '12PM', sales: 680, orders: 85 },
-    { time: '2PM', sales: 520, orders: 65 },
-    { time: '4PM', sales: 380, orders: 48 },
-    { time: '6PM', sales: 220, orders: 28 },
-    { time: '8PM', sales: 150, orders: 19 },
+interface SalesChartProps {
+  period?: 'today' | 'week' | 'month';
+}
+
+interface HourlyData {
+  time: string;
+  sales: number;
+  orders: number;
+}
+
+const SalesChart: React.FC<SalesChartProps> = ({ period = 'today' }) => {
+  const [data, setData] = useState<HourlyData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSalesData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(API_ENDPOINTS.ANALYTICS_SALES(period));
+        
+        if (response.ok) {
+          const result = await response.json();
+          
+          // Transform the data for the chart
+          if (result.data && result.data.groupedData) {
+            const transformedData = Object.entries(result.data.groupedData).map(([hour, data]: [string, any]) => ({
+              time: formatHour(hour),
+              sales: data.sales || 0,
+              orders: data.orders || 0,
+            }));
+            setData(transformedData);
+          } else {
+            // Use empty data if no sales data available
+            setData([]);
+          }
+        } else {
+          // Fallback to empty data on error
+          setData([]);
+        }
+      } catch (error) {
+        console.error('Error fetching sales data:', error);
+        // Fallback to empty data on error
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSalesData();
+  }, [period]);
+
+  const formatHour = (hour: string): string => {
+    // Convert "06:00" format to "6AM", "12:00" to "12PM", etc.
+    const [hours] = hour.split(':');
+    const hourNum = parseInt(hours, 10);
+    const period = hourNum >= 12 ? 'PM' : 'AM';
+    const displayHour = hourNum % 12 || 12;
+    return `${displayHour}${period}`;
+  };
+
+  // Default mock data structure for chart rendering
+  const chartData = data.length > 0 ? data : [
+    { time: '6AM', sales: 0, orders: 0 },
+    { time: '8AM', sales: 0, orders: 0 },
+    { time: '10AM', sales: 0, orders: 0 },
+    { time: '12PM', sales: 0, orders: 0 },
+    { time: '2PM', sales: 0, orders: 0 },
+    { time: '4PM', sales: 0, orders: 0 },
+    { time: '6PM', sales: 0, orders: 0 },
+    { time: '8PM', sales: 0, orders: 0 },
   ];
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -55,10 +113,18 @@ const SalesChart: React.FC = () => {
     );
   };
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ height: 300, width: '100%' }}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+        <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
           <defs>
             <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#8B4513" stopOpacity={0.3} />

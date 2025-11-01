@@ -8,6 +8,7 @@ import {
   LinearProgress,
   CircularProgress,
   Alert,
+  useTheme,
 } from '@mui/material';
 import {
   WbSunny,
@@ -19,6 +20,7 @@ import {
   LocationOn,
   Psychology,
 } from '@mui/icons-material';
+import { API_ENDPOINTS } from '../../config/api';
 
 interface WeatherData {
   temperature: number;
@@ -36,6 +38,7 @@ interface WeatherData {
 }
 
 const WeatherWidget: React.FC = () => {
+  const theme = useTheme();
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +56,7 @@ const WeatherWidget: React.FC = () => {
       setError(null);
       
       // Fetch from AI service
-      const response = await fetch('http://localhost:8000/weather/cafe');
+      const response = await fetch(API_ENDPOINTS.WEATHER);
       
       if (!response.ok) {
         throw new Error('Failed to fetch weather data');
@@ -156,10 +159,19 @@ const WeatherWidget: React.FC = () => {
     <Card sx={{ height: '100%' }}>
       <CardContent>
         {/* AI System Indicator */}
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, p: 1.5, backgroundColor: '#e3f2fd', borderRadius: 2 }}>
-          <Psychology sx={{ mr: 1, color: '#1976d2' }} />
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          mb: 2, 
+          p: 1.5, 
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? 'rgba(25, 118, 210, 0.15)' 
+            : '#e3f2fd', 
+          borderRadius: 2 
+        }}>
+          <Psychology sx={{ mr: 1, color: theme.palette.mode === 'dark' ? '#64b5f6' : '#1976d2' }} />
           <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1976d2' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: theme.palette.mode === 'dark' ? '#90caf9' : '#1976d2' }}>
               AI-Powered Weather Analysis
             </Typography>
             <Typography variant="caption" color="text.secondary">
@@ -170,7 +182,14 @@ const WeatherWidget: React.FC = () => {
 
         {/* Location Display */}
         {weatherData.location && (
-          <Box sx={{ mb: 2, p: 1.5, backgroundColor: '#f5f5f5', borderRadius: 2 }}>
+          <Box sx={{ 
+            mb: 2, 
+            p: 1.5, 
+            backgroundColor: theme.palette.mode === 'dark' 
+              ? 'rgba(255, 255, 255, 0.05)' 
+              : '#f5f5f5', 
+            borderRadius: 2 
+          }}>
             <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
               <LocationOn sx={{ mr: 1, color: 'primary.main', mt: 0.5 }} />
               <Box sx={{ flex: 1 }}>
@@ -228,10 +247,18 @@ const WeatherWidget: React.FC = () => {
         />
 
         {/* AI Demand Impact */}
-        <Box sx={{ mt: 3, p: 2, backgroundColor: '#e8f5e9', borderRadius: 2, border: '2px solid #4caf50' }}>
+        <Box sx={{ 
+          mt: 3, 
+          p: 2, 
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? 'rgba(76, 175, 80, 0.15)' 
+            : '#e8f5e9', 
+          borderRadius: 2, 
+          border: `2px solid ${theme.palette.mode === 'dark' ? 'rgba(76, 175, 80, 0.5)' : '#4caf50'}` 
+        }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-            <Psychology sx={{ mr: 1, color: '#4caf50', fontSize: 20 }} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+            <Psychology sx={{ mr: 1, color: theme.palette.mode === 'dark' ? '#81c784' : '#4caf50', fontSize: 20 }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: theme.palette.mode === 'dark' ? '#a5d6a7' : '#2e7d32' }}>
               AI-Predicted Demand Impact
             </Typography>
           </Box>
@@ -266,7 +293,14 @@ const WeatherWidget: React.FC = () => {
             />
           </Box>
 
-          <Box sx={{ mt: 2, p: 1, backgroundColor: 'white', borderRadius: 1 }}>
+          <Box sx={{ 
+            mt: 2, 
+            p: 1, 
+            backgroundColor: theme.palette.mode === 'dark' 
+              ? 'rgba(255, 255, 255, 0.05)' 
+              : 'white', 
+            borderRadius: 1 
+          }}>
             <Typography variant="body2" sx={{ textAlign: 'center', fontWeight: 600 }}>
               Overall: {impact.overall > 0 ? '+' : ''}{(impact.overall * 100).toFixed(0)}% expected change
             </Typography>

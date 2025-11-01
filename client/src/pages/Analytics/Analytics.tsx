@@ -16,6 +16,7 @@ import {
 } from '@mui/icons-material';
 import SalesChart from '../../components/Charts/SalesChart';
 import WeatherWidget from '../../components/Widgets/WeatherWidget';
+import { API_ENDPOINTS } from '../../config/api';
 
 const Analytics: React.FC = () => {
   const [analyticsData, setAnalyticsData] = useState<{
@@ -43,7 +44,7 @@ const Analytics: React.FC = () => {
         setAnalyticsData(prev => ({ ...prev, loading: true, error: null }));
         
         // Call Firebase Function to get analytics data
-        const response = await fetch('http://localhost:5000/api/analytics/sales?period=today');
+        const response = await fetch(API_ENDPOINTS.ANALYTICS_SALES('today'));
         const result = await response.json();
         
         if (result.success) {
@@ -187,7 +188,7 @@ const Analytics: React.FC = () => {
                   <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
                     Sales Overview
                   </Typography>
-                  <SalesChart />
+                  <SalesChart period="today" />
                 </CardContent>
               </Card>
             </Grid>

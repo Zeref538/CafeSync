@@ -641,5 +641,93 @@
       "customerType": "dine-in",
       "paymentMethod": "cash"
     }
+  },
+  {
+    "id": "48a39cc3-7574-4a8a-abf8-564ee851e8b5",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761476432193",
+        "name": "Iced Americano",
+        "basePrice": 59,
+        "unitPrice": 59,
+        "price": 59,
+        "quantity": 1,
+        "customizations": {
+          "size": "Small",
+          "milk": "Whole",
+          "extras": [],
+          "notes": ""
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "27KuSS9mVQV8VYchVtY2dXXtq792",
+    "totalAmount": 59,
+    "estimatedPrepTime": 3,
+    "priority": "high",
+    "createdAt": "2025-10-27T01:20:36.353Z",
+    "updatedAt": "2025-10-27T01:20:39.514Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-27T01:20:39.515Z",
+    "storedAt": "2025-10-27T01:20:39.515Z",
+    "analysisData": {
+      "totalPrepTime": 0.05268333333333333,
+      "orderValue": 59,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "27KuSS9mVQV8VYchVtY2dXXtq792"
+    }
+  },
+  {
+    "id": "5755405a-65f2-4fb1-b6eb-aa4a4643e4ef",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761476432193",
+        "name": "Iced Americano",
+        "basePrice": 59,
+        "unitPrice": 99,
+        "price": 99,
+        "quantity": 8,
+        "customizations": {
+          "size": "Large",
+          "extras": [
+            "Nata de Coco",
+            "Extra Sugar"
+          ],
+          "notes": "less ice\n"
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "27KuSS9mVQV8VYchVtY2dXXtq792",
+    "totalAmount": 792,
+    "estimatedPrepTime": 5,
+    "priority": "high",
+    "createdAt": "2025-10-27T02:47:14.246Z",
+    "updatedAt": "2025-10-27T02:47:17.221Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-10-27T02:47:17.221Z",
+    "storedAt": "2025-10-27T02:47:17.221Z",
+    "analysisData": {
+      "totalPrepTime": 0.04958333333333333,
+      "orderValue": 792,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "27KuSS9mVQV8VYchVtY2dXXtq792"
+    }
   }
 ]

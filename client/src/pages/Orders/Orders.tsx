@@ -30,6 +30,7 @@ import {
   MoreVert,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
+import { API_ENDPOINTS } from '../../config/api';
 
 interface Order {
   id: string;
@@ -39,6 +40,7 @@ interface Order {
   status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
   station: string;
   totalAmount: number;
+  total?: number;
   createdAt: string;
   estimatedPrepTime: number;
 }
@@ -52,14 +54,26 @@ const Orders: React.FC = () => {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/orders');
+        const response = await fetch(API_ENDPOINTS.ORDERS);
         if (response.ok) {
           const result = await response.json();
-          setOrders(result.data);
-          setFilteredOrders(result.data);
+          const ordersWithDefaults = (result.data || []).map((order: Order) => ({
+            ...order,
+            totalAmount: order.totalAmount || order.total || 0,
+            estimatedPrepTime: order.estimatedPrepTime || 15,
+            createdAt: order.createdAt || new Date().toISOString(),
+          }));
+          setOrders(ordersWithDefaults);
+          setFilteredOrders(ordersWithDefaults);
+        } else {
+          console.error('Failed to fetch orders');
+          setOrders([]);
+          setFilteredOrders([]);
         }
       } catch (error) {
         console.error('Error fetching orders:', error);
+        setOrders([]);
+        setFilteredOrders([]);
       }
     };
 
@@ -97,55 +111,6 @@ const Orders: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedTab, setSelectedTab] = useState(0);
-
-  // Mock orders data
-  useEffect(() => {
-    const mockOrders: Order[] = [
-      {
-        id: '1',
-        orderNumber: 1001,
-        customer: 'John Smith',
-        items: [
-          { name: 'Latte', quantity: 1, price: 4.50 },
-          { name: 'Croissant', quantity: 1, price: 3.00 },
-        ],
-        status: 'preparing',
-        station: 'front-counter',
-        totalAmount: 7.50,
-        createdAt: '2024-01-20T14:30:00Z',
-        estimatedPrepTime: 3,
-      },
-      {
-        id: '2',
-        orderNumber: 1002,
-        customer: 'Sarah Johnson',
-        items: [
-          { name: 'Cappuccino', quantity: 1, price: 4.25 },
-          { name: 'Muffin', quantity: 1, price: 2.50 },
-        ],
-        status: 'ready',
-        station: 'kitchen',
-        totalAmount: 6.75,
-        createdAt: '2024-01-20T14:25:00Z',
-        estimatedPrepTime: 2,
-      },
-      {
-        id: '3',
-        orderNumber: 1003,
-        customer: 'Mike Chen',
-        items: [
-          { name: 'Americano', quantity: 1, price: 3.50 },
-        ],
-        status: 'pending',
-        station: 'front-counter',
-        totalAmount: 3.50,
-        createdAt: '2024-01-20T14:35:00Z',
-        estimatedPrepTime: 2,
-      },
-    ];
-    setOrders(mockOrders);
-    setFilteredOrders(mockOrders);
-  }, []);
 
   // Filter orders based on search and status
   useEffect(() => {
@@ -382,7 +347,7 @@ const Orders: React.FC = () => {
                         </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <Typography variant="h6" sx={{ fontWeight: 700, color: '#8B4513' }}>
-                            ${order.totalAmount.toFixed(2)}
+                            ₱{(order.totalAmount || order.total || 0).toFixed(2)}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Est. {order.estimatedPrepTime}min

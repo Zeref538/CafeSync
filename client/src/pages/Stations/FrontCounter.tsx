@@ -27,15 +27,21 @@ import {
   Paper,
   InputAdornment,
   CircularProgress,
+  Alert,
+  useTheme,
 } from '@mui/material';
 import {
   Search,
   Receipt,
   ShoppingCart,
   Delete,
+  Add,
+  Remove,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
 import { useAuth } from '../../contexts/AuthContext';
+import toast from 'react-hot-toast';
+import { API_ENDPOINTS } from '../../config/api';
 
 interface SizePrice {
   size: string;
@@ -57,6 +63,7 @@ interface MenuItem {
 }
 
 const FrontCounter: React.FC = () => {
+  const theme = useTheme();
   const { socket, joinStation, emitOrderUpdate } = useSocket();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -72,8 +79,28 @@ const FrontCounter: React.FC = () => {
   const [selectedMilk, setSelectedMilk] = useState<string>('Whole');
   const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
   const [customNotes, setCustomNotes] = useState<string>('');
+  const [quantity, setQuantity] = useState<number>(1);
+  const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [addons, setAddons] = useState<any[]>([]);
+  const [discounts, setDiscounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [discountCode, setDiscountCode] = useState<string>('');
+  const [discountPercentage, setDiscountPercentage] = useState<number>(0);
+  const [showDiscountInput, setShowDiscountInput] = useState(false);
+
+  // Load discounts from server
+  const loadDiscounts = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.DISCOUNTS);
+      if (response.ok) {
+        const data = await response.json();
+        setDiscounts(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading discounts:', error);
+    }
+  };
 
   // Load menu items from server
   const loadMenuItems = async () => {
@@ -103,9 +130,29 @@ const FrontCounter: React.FC = () => {
     }
   };
 
-  // Load menu items on component mount
+  // Load add-ons from server
+  const loadAddons = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.ADDONS);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded add-ons:', data);
+        setAddons(data.data || []);
+      } else {
+        console.error('Failed to load add-ons');
+        setAddons([]);
+      }
+    } catch (error) {
+      console.error('Error loading add-ons:', error);
+      setAddons([]);
+    }
+  };
+
+  // Load menu items and add-ons on component mount
   useEffect(() => {
     loadMenuItems();
+    loadAddons();
+    loadDiscounts();
   }, []);
 
   // Get unique categories from menu items
@@ -146,11 +193,48 @@ const FrontCounter: React.FC = () => {
     }
   };
 
-  const getTotalPrice = () => {
+  const getSubtotal = () => {
     return currentOrder.reduce((total, item) => {
       const unit = (item.unitPrice ?? item.price);
       return total + (unit * item.quantity);
     }, 0);
+  };
+
+  const getDiscountAmount = () => {
+    if (discountPercentage > 0) {
+      return (getSubtotal() * discountPercentage) / 100;
+    }
+    return 0;
+  };
+
+  const getTotalPrice = () => {
+    return getSubtotal() - getDiscountAmount();
+  };
+
+  // Handle discount code application
+  const handleApplyDiscount = () => {
+    const code = discountCode.toUpperCase().trim();
+    if (!code) {
+      toast.error('Please enter a discount code');
+      return;
+    }
+
+    // Find discount in loaded discounts
+    const discount = discounts.find(d => d.code.toUpperCase() === code);
+    
+    if (discount) {
+      setDiscountPercentage(discount.percentage);
+      setShowDiscountInput(false);
+      toast.success(`Discount code applied! ${discount.percentage}% off`);
+    } else {
+      toast.error('Invalid discount code');
+    }
+  };
+
+  const removeDiscount = () => {
+    setDiscountCode('');
+    setDiscountPercentage(0);
+    setShowDiscountInput(false);
   };
 
   const openCustomization = (item: any) => {
@@ -163,9 +247,10 @@ const FrontCounter: React.FC = () => {
       setSelectedSize('Regular');
     }
     
-    setSelectedMilk('Whole');
     setSelectedExtras([]);
     setCustomNotes('');
+    setQuantity(1);
+    setAddonQuantities({}); // Reset add-on quantities
     setCustomizationOpen(true);
   };
 
@@ -186,20 +271,34 @@ const FrontCounter: React.FC = () => {
       }
     }
     
-    // Add milk and extras pricing
-    if (selectedMilk === 'Almond' || selectedMilk === 'Oat') sizePrice += 0.5;
-    sizePrice += selectedExtras.length * 0.5;
-    return sizePrice;
+    // Add extras pricing WITH QUANTITY
+    const addOnTotal = Object.entries(addonQuantities).reduce((total, [addonId, qty]) => {
+      if (qty > 0) {
+        const addon = addons.find(a => a.id === addonId);
+        return total + (addon ? addon.price * qty : 0);
+      }
+      return total;
+    }, 0);
+    
+    return sizePrice + addOnTotal;
   };
 
   const addCustomizedToOrder = () => {
     if (!selectedItem) return;
     const unitPrice = parseFloat(calculateUnitPrice(selectedItem.price).toFixed(2));
+    
+    // Convert addon quantities to extras array with quantities
+    const extrasWithQuantity = Object.entries(addonQuantities)
+      .filter(([_, qty]) => qty > 0)
+      .map(([addonId, qty]) => {
+        const addon = addons.find(a => a.id === addonId);
+        return { name: addon?.name || '', quantity: qty, price: addon?.price || 0 };
+      });
+    
     const customizations = {
       size: selectedSize,
-      milk: selectedMilk,
-      extras: selectedExtras,
-      notes: customNotes,
+      extras: extrasWithQuantity.length > 0 ? extrasWithQuantity : null,
+      notes: customNotes || null,
     };
 
     const existingIndex = currentOrder.findIndex((line) => (
@@ -209,7 +308,7 @@ const FrontCounter: React.FC = () => {
 
     if (existingIndex >= 0) {
       setCurrentOrder(prev => prev.map((line, idx) => idx === existingIndex
-        ? { ...line, quantity: line.quantity + 1 }
+        ? { ...line, quantity: line.quantity + quantity }
         : line
       ));
     } else {
@@ -221,7 +320,7 @@ const FrontCounter: React.FC = () => {
           basePrice: selectedItem.price,
           unitPrice,
           price: unitPrice,
-          quantity: 1,
+          quantity: quantity,
           customizations,
         },
       ]);
@@ -253,6 +352,12 @@ const FrontCounter: React.FC = () => {
     const order = {
       customer: customerInfo.tableNumber || 'Takeout',
       items: currentOrder,
+      subtotal: getSubtotal(),
+      discount: discountPercentage > 0 ? {
+        percentage: discountPercentage,
+        amount: getDiscountAmount(),
+        code: discountCode,
+      } : null,
       total: getTotalPrice(),
       station: 'front-counter',
       paymentMethod: customerInfo.paymentMethod,
@@ -265,7 +370,7 @@ const FrontCounter: React.FC = () => {
     try {
       // Send order to server
       console.log('Sending request to server...');
-      const response = await fetch('http://localhost:5000/api/orders', {
+      const response = await fetch(API_ENDPOINTS.ORDERS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -281,24 +386,36 @@ const FrontCounter: React.FC = () => {
 
         console.log('Order created successfully:', createdOrder);
 
-        // Emit order update via socket to notify other stations
-        emitOrderUpdate({
-          ...createdOrder,
-          station: 'front-counter',
-          timestamp: new Date().toISOString(),
-        });
-
         // Reset form
         setCurrentOrder([]);
         setCustomerInfo({ tableNumber: '', paymentMethod: 'cash' });
+        setDiscountCode('');
+        setDiscountPercentage(0);
+        setShowDiscountInput(false);
+
+        // Show success message
+        toast.success(`Order #${createdOrder.orderNumber} placed successfully!`);
+        
+        // Emit order update via socket to notify other stations
+        try {
+          emitOrderUpdate({
+            ...createdOrder,
+            station: 'front-counter',
+            timestamp: new Date().toISOString(),
+          });
+        } catch (socketError) {
+          console.log('Socket not available in production, skipping emit');
+        }
 
         console.log('Order placed successfully:', createdOrder);
       } else {
         const errorText = await response.text();
         console.error('Failed to place order:', response.status, errorText);
+        toast.error('Failed to place order. Please try again.');
       }
     } catch (error) {
       console.error('Error placing order:', error);
+      toast.error('Network error. Please check your connection and try again.');
     }
   };
 
@@ -468,10 +585,15 @@ const FrontCounter: React.FC = () => {
                           {item.customizations ? (
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center', mt: 0.5 }}>
                               <Chip label={item.customizations.size} size="small" />
-                              <Chip label={item.customizations.milk} size="small" />
-                              {item.customizations.extras && item.customizations.extras.map((ex: string) => (
-                                <Chip key={ex} label={ex} size="small" />
-                              ))}
+                              {item.customizations.extras && item.customizations.extras.map((ex: any, idx: number) => {
+                                const label = typeof ex === 'string' ? ex : `${ex.name} (${ex.quantity})`;
+                                return <Chip key={idx} label={label} size="small" />;
+                              })}
+                              {item.customizations.notes && (
+                                <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                  Note: {item.customizations.notes}
+                                </Typography>
+                              )}
                               <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
                                 ₱{ (item.unitPrice ?? item.price).toFixed(2) } each
                               </Typography>
@@ -516,14 +638,89 @@ const FrontCounter: React.FC = () => {
 
               <Divider sx={{ my: 2 }} />
 
-              {/* Total and Place Order */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Total:
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#8B4513' }}>
-                  ₱{getTotalPrice().toFixed(2)}
-                </Typography>
+              {/* Discount Section */}
+              {!showDiscountInput && discountPercentage === 0 && currentOrder.length > 0 && (
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  sx={{ mb: 2, textTransform: 'none' }}
+                  onClick={() => setShowDiscountInput(true)}
+                >
+                  Apply Discount Code
+                </Button>
+              )}
+
+              {showDiscountInput && (
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                    <TextField
+                      size="small"
+                      placeholder="Enter discount code"
+                      value={discountCode}
+                      onChange={(e) => setDiscountCode(e.target.value)}
+                      sx={{ flex: 1 }}
+                    />
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={handleApplyDiscount}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Apply
+                    </Button>
+                  </Box>
+                  <Button
+                    fullWidth
+                    variant="text"
+                    size="small"
+                    onClick={() => setShowDiscountInput(false)}
+                  >
+                    Cancel
+                  </Button>
+                </Box>
+              )}
+
+              {discountPercentage > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Chip
+                    label={`${discountPercentage}% OFF Applied`}
+                    color="success"
+                    onDelete={removeDiscount}
+                    sx={{ mb: 1 }}
+                  />
+                </Box>
+              )}
+
+              {/* Order Summary */}
+              <Box sx={{ mb: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body1" color="text.secondary">
+                    Subtotal:
+                  </Typography>
+                  <Typography variant="body1">
+                    ₱{getSubtotal().toFixed(2)}
+                  </Typography>
+                </Box>
+                {discountPercentage > 0 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body1" color="success.main">
+                      Discount ({discountPercentage}%):
+                    </Typography>
+                    <Typography variant="body1" color="success.main">
+                      -₱{getDiscountAmount().toFixed(2)}
+                    </Typography>
+                  </Box>
+                )}
+                <Divider sx={{ my: 1 }} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    Total:
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#8B4513' }}>
+                    ₱{getTotalPrice().toFixed(2)}
+                  </Typography>
+                </Box>
               </Box>
 
               <Button
@@ -543,16 +740,19 @@ const FrontCounter: React.FC = () => {
       </Grid>
 
       {/* Customization Dialog */}
-      <Dialog open={customizationOpen} onClose={closeCustomization} maxWidth="sm" fullWidth>
-        <DialogTitle>
+      <Dialog open={customizationOpen} onClose={closeCustomization} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ bgcolor: theme.palette.mode === 'dark' ? '#654321' : '#8B4513', color: 'white', fontWeight: 600 }}>
           {selectedItem ? `Customize ${selectedItem.name}` : 'Customize Item'}
         </DialogTitle>
-        <DialogContent sx={{ minHeight: 400 }}>
-          <Grid container spacing={2} sx={{ mt: 2 }}>
+        <DialogContent sx={{ minHeight: 500, p: 3 }}>
+          <Grid container spacing={3}>
             <Grid item xs={12} sm={6}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513' }}>
+                Size
+              </Typography>
               <FormControl fullWidth size="small">
-                <InputLabel id="size-label">Size</InputLabel>
-                <Select labelId="size-label" label="Size" value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}>
+                <InputLabel id="size-label">Select Size</InputLabel>
+                <Select labelId="size-label" label="Select Size" value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}>
                   {selectedItem?.sizes && selectedItem.sizes.length > 0 ? (
                     selectedItem.sizes.map((size: SizePrice) => (
                       <MenuItem key={size.size} value={size.size}>
@@ -566,56 +766,178 @@ const FrontCounter: React.FC = () => {
               </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth size="small">
-                <InputLabel id="milk-label">Milk</InputLabel>
-                <Select labelId="milk-label" label="Milk" value={selectedMilk} onChange={(e) => setSelectedMilk(e.target.value)}>
-                  <MenuItem value="Whole">Whole</MenuItem>
-                  <MenuItem value="Skim">Skim</MenuItem>
-                  <MenuItem value="Almond">Almond (+₱0.50)</MenuItem>
-                  <MenuItem value="Oat">Oat (+₱0.50)</MenuItem>
-                </Select>
-              </FormControl>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513' }}>
+                Quantity
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    sx={{ minWidth: 40 }}
+                  >
+                    -
+                  </Button>
+                  <Typography variant="h6" sx={{ minWidth: 30, textAlign: 'center' }}>
+                    {quantity}
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    onClick={() => setQuantity(quantity + 1)}
+                    sx={{ minWidth: 40 }}
+                  >
+                    +
+                  </Button>
+                </Box>
+              </Box>
             </Grid>
-            <Grid item xs={12}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Extras (₱0.50 each)</Typography>
-              <FormGroup row>
-                {['Extra Shot', 'Vanilla Syrup', 'Caramel Syrup', 'Hazelnut Syrup'].map((extra) => (
-                  <FormControlLabel
-                    key={extra}
-                    control={
-                      <Checkbox
-                        checked={selectedExtras.includes(extra)}
-                        onChange={(e) => {
-                          setSelectedExtras(prev => e.target.checked ? [...prev, extra] : prev.filter(x => x !== extra));
-                        }}
-                      />
-                    }
-                    label={extra}
-                  />
-                ))}
-              </FormGroup>
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5, color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513' }}>Add-ons</Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 280, overflowY: 'auto' }}>
+                {addons.map((addon) => {
+                  const quantity = addonQuantities[addon.id] || 0;
+                  return (
+                    <Paper 
+                      key={addon.id} 
+                      elevation={quantity > 0 ? 1 : 0}
+                      sx={{ 
+                        p: 1.5, 
+                        border: quantity > 0 ? `1.5px solid ${theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513'}` : `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1.5,
+                        backgroundColor: quantity > 0 
+                          ? (theme.palette.mode === 'dark' ? 'rgba(212, 165, 116, 0.1)' : '#fff9f0')
+                          : 'transparent',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                            {addon.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                            ₱{addon.price}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <IconButton
+                            onClick={() => setAddonQuantities({...addonQuantities, [addon.id]: Math.max(0, quantity - 1)})}
+                            disabled={quantity === 0}
+                            size="small"
+                            sx={{ 
+                              color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513',
+                              border: `1px solid ${theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513'}`,
+                              '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513', color: 'white' },
+                              '&.Mui-disabled': { borderColor: theme.palette.divider }
+                            }}
+                          >
+                            <Remove fontSize="small" />
+                          </IconButton>
+                          <TextField
+                            value={quantity}
+                            onChange={(e) => {
+                              const newQty = parseInt(e.target.value) || 0;
+                              setAddonQuantities({...addonQuantities, [addon.id]: Math.max(0, newQty)});
+                            }}
+                            inputProps={{ 
+                              style: { 
+                                textAlign: 'center', 
+                                fontWeight: 600,
+                                fontSize: '0.9rem',
+                                padding: '8px 4px'
+                              }
+                            }}
+                            variant="outlined"
+                            size="small"
+                            sx={{ 
+                              width: 50,
+                              '& .MuiOutlinedInput-root': {
+                                borderRadius: 1
+                              }
+                            }}
+                          />
+                          <IconButton
+                            onClick={() => setAddonQuantities({...addonQuantities, [addon.id]: quantity + 1})}
+                            size="small"
+                            sx={{ 
+                              backgroundColor: theme.palette.mode === 'dark' ? '#654321' : '#8B4513',
+                              color: 'white',
+                              '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#543d21' : '#6d3504' }
+                            }}
+                          >
+                            <Add fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  );
+                })}
+              </Box>
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} md={6}>
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513' }}>Special Instructions</Typography>
               <TextField
                 label="Notes"
                 placeholder="e.g., Less ice, no sugar"
                 fullWidth
                 multiline
-                minRows={2}
+                minRows={4}
                 value={customNotes}
                 onChange={(e) => setCustomNotes(e.target.value)}
+                sx={{ mb: 2 }}
               />
-            </Grid>
-            <Grid item xs={12}>
-              <Typography variant="body2" color="text.secondary">
-                Price: ₱{selectedItem ? calculateUnitPrice(selectedItem.price).toFixed(2) : '0.00'}
-              </Typography>
+              
+              <Paper elevation={2} sx={{ p: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(212, 165, 116, 0.1)' : '#fff9f0', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="body1" color="text.secondary">
+                    Unit Price:
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513' }}>
+                    ₱{selectedItem ? calculateUnitPrice(selectedItem.price).toFixed(2) : '0.00'}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="body1" color="text.secondary">
+                    Quantity:
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    × {quantity}
+                  </Typography>
+                </Box>
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="h6" color="text.secondary">
+                    Total Price:
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513' }}>
+                    ₱{selectedItem ? (calculateUnitPrice(selectedItem.price) * quantity).toFixed(2) : '0.00'}
+                  </Typography>
+                </Box>
+              </Paper>
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={closeCustomization}>Cancel</Button>
-          <Button variant="contained" onClick={addCustomizedToOrder}>Add to Order</Button>
+        <DialogActions sx={{ p: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.3)' : '#f5f5f5' }}>
+          <Button 
+            onClick={closeCustomization} 
+            size="large"
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={addCustomizedToOrder}
+            size="large"
+            sx={{ 
+              bgcolor: theme.palette.mode === 'dark' ? '#654321' : '#8B4513',
+              '&:hover': { bgcolor: theme.palette.mode === 'dark' ? '#543d21' : '#6d3504' },
+              textTransform: 'none',
+              minWidth: 150
+            }}
+          >
+            Add to Order
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

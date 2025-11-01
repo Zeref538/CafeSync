@@ -10,18 +10,15 @@ import {
   IconButton,
   useTheme,
   useMediaQuery,
-  Badge,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   Inventory as InventoryIcon,
   Analytics as AnalyticsIcon,
-  Settings as SettingsIcon,
   Storefront as FrontCounterIcon,
   Restaurant as KitchenIcon,
   Business as ManagementIcon,
-  Notifications as NotificationsIcon,
 } from '@mui/icons-material';
 
 import { useAuth } from '../../contexts/AuthContext';
@@ -29,6 +26,7 @@ import { useSocket } from '../../contexts/SocketContext';
 import NavigationItem from './NavigationItem';
 import UserMenu from './UserMenu';
 import DarkModeToggle from './DarkModeToggle';
+import NotificationCenter from './NotificationCenter';
 
 const drawerWidth = 280;
 
@@ -74,14 +72,6 @@ const Layout: React.FC = () => {
         badge: undefined,
         color: undefined,
       },
-      {
-        text: 'Settings',
-        icon: <SettingsIcon />,
-        path: '/settings',
-        permission: 'settings',
-        badge: undefined,
-        color: undefined,
-      },
     ];
 
     // Station-specific items
@@ -95,9 +85,9 @@ const Layout: React.FC = () => {
         badge: undefined,
       },
       {
-        text: 'Kitchen',
+        text: 'Orders',
         icon: <KitchenIcon />,
-        path: '/station/kitchen',
+        path: '/station/orders',
         permission: 'orders',
         color: '#ff9800',
         badge: undefined,
@@ -233,11 +223,7 @@ const Layout: React.FC = () => {
 
           <DarkModeToggle />
           
-          <IconButton color="inherit" sx={{ mr: 1 }}>
-            <Badge badgeContent={5} color="error">
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
+          <NotificationCenter />
         </Toolbar>
       </AppBar>
 

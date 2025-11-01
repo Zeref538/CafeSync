@@ -40,8 +40,11 @@ import {
   Save,
   Cancel,
   Restaurant,
+  CheckCircle,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
+import { API_ENDPOINTS } from '../../config/api';
+import { useTheme } from '@mui/material/styles';
 
 interface SizePrice {
   size: string;
@@ -54,7 +57,7 @@ interface FormSizePrice {
 }
 
 interface MenuItem {
-  id: number;
+  id: string | number; // Firestore uses string IDs, but support both for compatibility
   name: string;
   price: number; // Base price (for backward compatibility)
   category: string;
@@ -63,7 +66,6 @@ interface MenuItem {
   isAvailable: boolean;
   preparationTime?: number;
   ingredients?: string[];
-  allergens?: string[];
   sizes?: SizePrice[]; // New size-based pricing
 }
 
@@ -73,6 +75,7 @@ interface MenuManagementProps {
 
 const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
   const { emitMenuUpdate } = useSocket();
+  const theme = useTheme();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -88,7 +91,6 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
     isAvailable: boolean;
     preparationTime: string;
     ingredients: string[];
-    allergens: string[];
     sizes: FormSizePrice[];
   }>({
     name: '',
@@ -98,37 +100,15 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
     isAvailable: true,
     preparationTime: '',
     ingredients: [],
-    allergens: [],
     sizes: [],
   });
   
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
-
-
-  const commonIngredients = [
-    'Coffee Beans',
-    'Milk',
-    'Sugar',
-    'Vanilla',
-    'Chocolate',
-    'Caramel',
-    'Whipped Cream',
-    'Ice',
-    'Water',
-    'Flour',
-    'Butter',
-    'Eggs'
-  ];
-
-  const commonAllergens = [
-    'Dairy',
-    'Gluten',
-    'Nuts',
-    'Soy',
-    'Eggs',
-    'Sesame'
-  ];
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [loadingInventory, setLoadingInventory] = useState(false);
 
   const sizeOptions = [
     'Small',
@@ -137,10 +117,45 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
     'Extra Large'
   ];
 
-  // Load menu items on component mount
+  // Load inventory items from API
+  const loadInventoryItems = async () => {
+    try {
+      setLoadingInventory(true);
+      const response = await fetch(API_ENDPOINTS.INVENTORY);
+      if (response.ok) {
+        const data = await response.json();
+        setInventoryItems(data.data || []);
+        console.log('Loaded inventory items for ingredients:', data.data);
+      } else {
+        console.error('Failed to load inventory items');
+        setInventoryItems([]);
+      }
+    } catch (error) {
+      console.error('Error loading inventory items:', error);
+      setInventoryItems([]);
+    } finally {
+      setLoadingInventory(false);
+    }
+  };
+
+  // Get ingredient names from inventory
+  const availableIngredients = inventoryItems.map(item => item.name);
+
+  // Load inventory first, then menu items
   useEffect(() => {
-    loadMenuItems();
+    const initializeData = async () => {
+      await loadInventoryItems();
+      await loadMenuItems();
+    };
+    initializeData();
   }, []);
+  
+  // Reload menu items when inventory changes to filter ingredients
+  useEffect(() => {
+    if (inventoryItems.length > 0) {
+      loadMenuItems();
+    }
+  }, [inventoryItems.length]);
 
   const loadMenuItems = async () => {
     try {
@@ -155,7 +170,27 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
         console.log('Loaded menu items from API:', data);
         console.log('First menu item data:', data.data?.[0]);
         console.log('First menu item sizes:', data.data?.[0]?.sizes);
-        setMenuItems(data.data || []);
+        console.log('Available ingredients from inventory:', availableIngredients);
+        
+        // Filter ingredients on frontend to ensure only valid inventory items are shown
+        let items = data.data || [];
+        if (availableIngredients.length > 0) {
+          items = items.map((item: MenuItem) => {
+            if (item.ingredients && Array.isArray(item.ingredients)) {
+              const filteredIngredients = item.ingredients.filter((ingredient: string) => 
+                availableIngredients.includes(ingredient)
+              );
+              console.log(`Filtering ${item.name} ingredients: ${item.ingredients.join(', ')} -> ${filteredIngredients.join(', ')}`);
+              return {
+                ...item,
+                ingredients: filteredIngredients
+              };
+            }
+            return item;
+          });
+        }
+        
+        setMenuItems(items);
       } else {
         // No fallback - start with empty menu
         console.error('Failed to load menu items, response status:', response.status);
@@ -193,7 +228,6 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
         isAvailable: item.isAvailable,
         preparationTime: (item.preparationTime || 5).toString(),
         ingredients: item.ingredients || [],
-        allergens: item.allergens || [],
         sizes: item.sizes && item.sizes.length > 0 ? item.sizes.map(size => ({
           ...size,
           price: size.price.toString()
@@ -210,7 +244,6 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
         isAvailable: true,
         preparationTime: '',
         ingredients: [],
-        allergens: [],
         sizes: [{ size: 'Regular', price: '' } as FormSizePrice], // Add default size
       });
       setImagePreview('');
@@ -230,10 +263,9 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
       description: '',
       imageUrl: '',
       isAvailable: true,
-      preparationTime: '',
-      ingredients: [],
-      allergens: [],
-      sizes: [],
+        preparationTime: '',
+        ingredients: [],
+        sizes: [],
     });
   };
 
@@ -279,8 +311,8 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
         return;
       }
 
-      const itemData = {
-        id: editingItem?.id || Date.now(),
+      // Prepare item data - ensure ID is included for PUT requests
+      const itemData: any = {
         name: formData.name,
         category: formData.category,
         description: formData.description,
@@ -288,7 +320,6 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
         preparationTime: parseInt(formData.preparationTime) || 5,
         imageUrl: imagePreview || formData.imageUrl,
         ingredients: formData.ingredients,
-        allergens: formData.allergens,
         price: parseFloat(formData.sizes[0].price) || 0, // Use first size as base price for backward compatibility
         sizes: formData.sizes.map(size => ({
           ...size,
@@ -296,8 +327,22 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
         } as SizePrice)),
       };
 
+      // Include ID only when editing (PUT request)
+      if (editingItem && editingItem.id) {
+        itemData.id = editingItem.id.toString(); // Convert to string for Firestore
+      }
+
+      // Filter ingredients to only include items that exist in inventory
+      if (itemData.ingredients && Array.isArray(itemData.ingredients)) {
+        itemData.ingredients = itemData.ingredients.filter((ingredient: string) => 
+          availableIngredients.includes(ingredient)
+        );
+      }
+
       console.log('Saving menu item with data:', JSON.stringify(itemData, null, 2));
+      console.log('Editing item:', editingItem);
       console.log('Sizes array being sent:', JSON.stringify(itemData.sizes, null, 2));
+      console.log('Filtered ingredients:', itemData.ingredients);
 
       // Always use Firebase Functions URL
       const apiUrl = 'https://us-central1-cafesync-3b25a.cloudfunctions.net/api/menu';
@@ -332,8 +377,9 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
         });
       } else {
         const errorText = await response.text();
+        console.error('Save failed, response status:', response.status);
         console.error('Save failed, response text:', errorText);
-        throw new Error('Failed to save menu item');
+        setSnackbar({ open: true, message: `Failed to save menu item: ${errorText}`, severity: 'error' });
       }
     } catch (error) {
       console.error('Error saving menu item:', error);
@@ -343,49 +389,77 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
     }
   };
 
-  const handleDeleteItem = async (item: MenuItem) => {
-    if (window.confirm(`Are you sure you want to delete "${item.name}"?`)) {
-      try {
-        setLoading(true);
-        
-        // Always use Firebase Functions URL
-        const apiUrl = `https://us-central1-cafesync-3b25a.cloudfunctions.net/api/menu/${item.id}`;
-          
-        const response = await fetch(apiUrl, {
-          method: 'DELETE',
-        });
+  const handleDeleteClick = (item: MenuItem) => {
+    setItemToDelete(item);
+    setDeleteDialogOpen(true);
+  };
 
-        if (response.ok) {
-          const updatedItems = menuItems.filter(i => i.id !== item.id);
-          setMenuItems(updatedItems);
-          onMenuUpdate?.(updatedItems);
-          
-          // Emit menu update to other components
-          emitMenuUpdate({
-            action: 'delete',
-            item: item,
-            items: updatedItems,
-            timestamp: new Date().toISOString()
-          });
-          
-          setSnackbar({ open: true, message: 'Menu item deleted successfully', severity: 'success' });
-        } else {
-          throw new Error('Failed to delete menu item');
-        }
-      } catch (error) {
-        console.error('Error deleting menu item:', error);
-        setSnackbar({ open: true, message: 'Failed to delete menu item', severity: 'error' });
-      } finally {
-        setLoading(false);
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    
+    try {
+      setLoading(true);
+      setDeleteDialogOpen(false);
+      
+      // Always use Firebase Functions URL - ensure ID is converted to string
+      const itemId = itemToDelete.id.toString();
+      const apiUrl = `https://us-central1-cafesync-3b25a.cloudfunctions.net/api/menu/${itemId}`;
+      
+      console.log('Deleting menu item:', itemId, 'URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Reload menu items to get the latest data from server
+        await loadMenuItems();
+        
+        setSnackbar({ open: true, message: 'Menu item deleted successfully', severity: 'success' });
+        
+        // Emit menu update to other components
+        emitMenuUpdate({
+          action: 'delete',
+          item: itemToDelete,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        const errorText = await response.text();
+        console.error('Delete failed, response status:', response.status);
+        console.error('Delete failed, response:', errorText);
+        setSnackbar({ open: true, message: `Failed to delete menu item: ${errorText}`, severity: 'error' });
       }
+    } catch (error) {
+      console.error('Error deleting menu item:', error);
+      setSnackbar({ open: true, message: `Failed to delete menu item: ${error instanceof Error ? error.message : 'Unknown error'}`, severity: 'error' });
+    } finally {
+      setLoading(false);
+      setItemToDelete(null);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setItemToDelete(null);
   };
 
   const toggleAvailability = async (item: MenuItem) => {
     try {
-      const updatedItem = { ...item, isAvailable: !item.isAvailable };
+      setLoading(true);
       
-      const response = await fetch('http://localhost:5000/api/menu', {
+      // Ensure ID is converted to string for Firestore
+      const updatedItem = { 
+        ...item, 
+        id: item.id.toString(), // Convert to string
+        isAvailable: !item.isAvailable 
+      };
+      
+      console.log('Toggling availability for item:', updatedItem);
+      
+      // Always use Firebase Functions URL
+      const apiUrl = 'https://us-central1-cafesync-3b25a.cloudfunctions.net/api/menu';
+      
+      const response = await fetch(apiUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -394,287 +468,35 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
       });
 
       if (response.ok) {
-        const updatedItems = menuItems.map(i => i.id === item.id ? updatedItem : i);
-        setMenuItems(updatedItems);
-        onMenuUpdate?.(updatedItems);
-        
-        // Emit menu update to other components
-        emitMenuUpdate({
-          action: 'update',
-          item: updatedItem,
-          items: updatedItems,
-          timestamp: new Date().toISOString()
-        });
+        // Reload menu items to get the latest data from server
+        await loadMenuItems();
         
         setSnackbar({ 
           open: true, 
           message: `Menu item ${updatedItem.isAvailable ? 'enabled' : 'disabled'}`, 
           severity: 'success' 
         });
+        
+        // Emit menu update to other components
+        emitMenuUpdate({
+          action: 'update',
+          item: updatedItem,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        const errorText = await response.text();
+        console.error('Toggle availability failed, response status:', response.status);
+        console.error('Toggle availability failed, response:', errorText);
+        setSnackbar({ open: true, message: `Failed to update availability: ${errorText}`, severity: 'error' });
       }
     } catch (error) {
       console.error('Error updating availability:', error);
-      setSnackbar({ open: true, message: 'Failed to update availability', severity: 'error' });
+      setSnackbar({ open: true, message: `Failed to update availability: ${error instanceof Error ? error.message : 'Unknown error'}`, severity: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const bulkUploadMenuItems = async () => {
-    if (window.confirm('This will add all the cafe menu items. Continue?')) {
-      try {
-        setLoading(true);
-        
-        const cafeMenuItems = [
-          {
-            name: 'Americano',
-            category: 'Espresso',
-            description: 'Rich espresso with hot water',
-            ingredients: ['Water', 'Coffee (Depende if may sugar[Fructose])'],
-            allergens: [],
-            isAvailable: true,
-            preparationTime: 3,
-            sizes: [
-              { size: 'M', price: 59 },
-              { size: 'L', price: 79 }
-            ]
-          },
-          {
-            name: 'Americano Hot',
-            category: 'Hot Drinks',
-            description: 'Rich espresso with hot water',
-            ingredients: ['Water', 'Coffee (Depende if may sugar[Fructose])'],
-            allergens: [],
-            isAvailable: true,
-            preparationTime: 3,
-            sizes: [
-              { size: 'M', price: 69 },
-              { size: 'L', price: 89 }
-            ]
-          },
-          {
-            name: 'Latte',
-            category: 'Espresso',
-            description: 'Rich espresso with steamed milk',
-            ingredients: ['Milk', 'Coffee (add on sugar)'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 4,
-            sizes: [
-              { size: 'M', price: 69 },
-              { size: 'L', price: 89 }
-            ]
-          },
-          {
-            name: 'Latte Hot',
-            category: 'Hot Drinks',
-            description: 'Rich espresso with steamed milk',
-            ingredients: ['Milk', 'Coffee (add on sugar)'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 4,
-            sizes: [
-              { size: 'M', price: 79 },
-              { size: 'L', price: 99 }
-            ]
-          },
-          {
-            name: 'Roasted Almond',
-            category: 'Espresso',
-            description: 'Espresso with roasted almond flavor',
-            ingredients: ['Milk', 'Coffee', 'Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 4,
-            sizes: [
-              { size: 'M', price: 99 },
-              { size: 'L', price: 119 }
-            ]
-          },
-          {
-            name: 'Roasted Almond Hot',
-            category: 'Hot Drinks',
-            description: 'Espresso with roasted almond flavor',
-            ingredients: ['Milk', 'Coffee', 'Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 4,
-            sizes: [
-              { size: 'M', price: 109 },
-              { size: 'L', price: 129 }
-            ]
-          },
-          {
-            name: 'French Vanilla',
-            category: 'Espresso',
-            description: 'Espresso with French vanilla flavor',
-            ingredients: ['Milk', 'Coffee', 'Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 4,
-            sizes: [
-              { size: 'M', price: 109 },
-              { size: 'L', price: 129 }
-            ]
-          },
-          {
-            name: 'French Vanilla Hot',
-            category: 'Hot Drinks',
-            description: 'Espresso with French vanilla flavor',
-            ingredients: ['Milk', 'Coffee', 'Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 4,
-            sizes: [
-              { size: 'M', price: 119 },
-              { size: 'L', price: 139 }
-            ]
-          },
-          {
-            name: 'Butterscotch',
-            category: 'Espresso',
-            description: 'Espresso with butterscotch flavor',
-            ingredients: ['Milk', 'Coffee Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 4,
-            sizes: [
-              { size: 'M', price: 109 },
-              { size: 'L', price: 129 }
-            ]
-          },
-          {
-            name: 'Butterscotch Hot',
-            category: 'Hot Drinks',
-            description: 'Espresso with butterscotch flavor',
-            ingredients: ['Milk', 'Coffee Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 4,
-            sizes: [
-              { size: 'M', price: 119 },
-              { size: 'L', price: 139 }
-            ]
-          },
-          {
-            name: 'Caramel Macchiato',
-            category: 'Espresso',
-            description: 'Espresso with caramel and vanilla',
-            ingredients: ['Milk', 'Coffee', 'Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 5,
-            sizes: [
-              { size: 'M', price: 119 },
-              { size: 'L', price: 139 }
-            ]
-          },
-          {
-            name: 'Caramel Macchiato Hot',
-            category: 'Hot Drinks',
-            description: 'Espresso with caramel and vanilla',
-            ingredients: ['Milk', 'Coffee', 'Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 5,
-            sizes: [
-              { size: 'M', price: 129 },
-              { size: 'L', price: 149 }
-            ]
-          },
-          {
-            name: 'White Mocha',
-            category: 'Espresso',
-            description: 'Espresso with white chocolate',
-            ingredients: ['Milk', 'Coffee', 'White Choco'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 5,
-            sizes: [
-              { size: 'M', price: 119 },
-              { size: 'L', price: 139 }
-            ]
-          },
-          {
-            name: 'White Mocha Hot',
-            category: 'Hot Drinks',
-            description: 'Espresso with white chocolate',
-            ingredients: ['Milk', 'Coffee', 'White Choco'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 5,
-            sizes: [
-              { size: 'M', price: 129 },
-              { size: 'L', price: 149 }
-            ]
-          },
-          {
-            name: 'Mocha',
-            category: 'Espresso',
-            description: 'Espresso with chocolate flavor',
-            ingredients: ['Milk', 'Coffee', 'Syrup', 'Choco Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 5,
-            sizes: [
-              { size: 'M', price: 119 },
-              { size: 'L', price: 139 }
-            ]
-          },
-          {
-            name: 'Mocha Hot',
-            category: 'Hot Drinks',
-            description: 'Espresso with chocolate flavor',
-            ingredients: ['Milk', 'Coffee', 'Syrup', 'Choco Syrup'],
-            allergens: ['Dairy'],
-            isAvailable: true,
-            preparationTime: 5,
-            sizes: [
-              { size: 'M', price: 129 },
-              { size: 'L', price: 149 }
-            ]
-          }
-        ];
-
-        // Always use Firebase Functions URL
-        const apiUrl = 'https://us-central1-cafesync-3b25a.cloudfunctions.net/api/menu';
-
-        // Upload each item
-        for (const item of cafeMenuItems) {
-          const itemData = {
-            ...item,
-            id: Date.now() + Math.random(), // Generate unique ID
-            price: item.sizes[0].price, // Use first size as base price
-          };
-
-          const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(itemData),
-          });
-
-          if (!response.ok) {
-            throw new Error(`Failed to upload ${item.name}`);
-          }
-        }
-
-        // Reload menu items to show the new items
-        await loadMenuItems();
-        
-        setSnackbar({ 
-          open: true, 
-          message: `Successfully uploaded ${cafeMenuItems.length} menu items!`, 
-          severity: 'success' 
-        });
-        
-      } catch (error) {
-        console.error('Error bulk uploading menu items:', error);
-        setSnackbar({ open: true, message: 'Failed to upload menu items', severity: 'error' });
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
 
   const groupedItems = menuItems.reduce((groups, item) => {
     const category = item.category;
@@ -693,15 +515,6 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
           Menu Management
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="outlined"
-            startIcon={<Upload />}
-            onClick={bulkUploadMenuItems}
-            disabled={loading}
-            sx={{ textTransform: 'none' }}
-          >
-            Add Default Menu Items
-          </Button>
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -789,14 +602,18 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
                           <IconButton
                             size="small"
                             onClick={() => toggleAvailability(item)}
+                            disabled={loading}
                             sx={{ color: item.isAvailable ? '#ff9800' : '#4caf50' }}
+                            title={item.isAvailable ? 'Disable item' : 'Enable item'}
                           >
-                            {item.isAvailable ? 'Disable' : 'Enable'}
+                            {item.isAvailable ? <Cancel fontSize="small" /> : <CheckCircle fontSize="small" />}
                           </IconButton>
                           <IconButton
                             size="small"
-                            onClick={() => handleDeleteItem(item)}
+                            onClick={() => handleDeleteClick(item)}
+                            disabled={loading}
                             sx={{ color: '#f44336' }}
+                            title="Delete item"
                           >
                             <Delete fontSize="small" />
                           </IconButton>
@@ -904,63 +721,48 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
               />
             </Grid>
 
-            {/* Ingredients */}
-            <Grid item xs={12} sm={6}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                Ingredients
-              </Typography>
-              <FormControl fullWidth>
-                <InputLabel>Select Ingredients</InputLabel>
-                <Select
-                  multiple
-                  value={formData.ingredients}
-                  onChange={(e) => setFormData(prev => ({ ...prev, ingredients: e.target.value as string[] }))}
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {(selected as string[]).map((value) => (
-                        <Chip key={value} label={value} size="small" color="primary" />
-                      ))}
-                    </Box>
-                  )}
-                >
-                  {commonIngredients.map((ingredient) => (
-                    <MenuItem key={ingredient} value={ingredient}>
-                      <Checkbox checked={formData.ingredients.includes(ingredient)} />
-                      <Typography sx={{ ml: 1 }}>{ingredient}</Typography>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+             {/* Ingredients */}
+             <Grid item xs={12}>
+               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                 Ingredients
+               </Typography>
+               {loadingInventory ? (
+                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2 }}>
+                   <CircularProgress size={20} />
+                   <Typography variant="body2" color="text.secondary">
+                     Loading inventory items...
+                   </Typography>
+                 </Box>
+               ) : availableIngredients.length === 0 ? (
+                 <Alert severity="info" sx={{ mb: 2 }}>
+                   No inventory items found. Please add items to inventory first.
+                 </Alert>
+               ) : (
+                 <FormControl fullWidth>
+                   <InputLabel>Select Ingredients</InputLabel>
+                   <Select
+                     multiple
+                     value={formData.ingredients}
+                     onChange={(e) => setFormData(prev => ({ ...prev, ingredients: e.target.value as string[] }))}
+                     renderValue={(selected) => (
+                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                         {(selected as string[]).map((value) => (
+                           <Chip key={value} label={value} size="small" color="primary" />
+                         ))}
+                       </Box>
+                     )}
+                   >
+                     {availableIngredients.map((ingredient) => (
+                       <MenuItem key={ingredient} value={ingredient}>
+                         <Checkbox checked={formData.ingredients.includes(ingredient)} />
+                         <Typography sx={{ ml: 1 }}>{ingredient}</Typography>
+                       </MenuItem>
+                     ))}
+                   </Select>
+                 </FormControl>
+               )}
+             </Grid>
 
-            {/* Allergens */}
-            <Grid item xs={12} sm={6}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                Allergens
-              </Typography>
-              <FormControl fullWidth>
-                <InputLabel>Select Allergens</InputLabel>
-                <Select
-                  multiple
-                  value={formData.allergens}
-                  onChange={(e) => setFormData(prev => ({ ...prev, allergens: e.target.value as string[] }))}
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {(selected as string[]).map((value) => (
-                        <Chip key={value} label={value} size="small" color="warning" />
-                      ))}
-                    </Box>
-                  )}
-                >
-                  {commonAllergens.map((allergen) => (
-                    <MenuItem key={allergen} value={allergen}>
-                      <Checkbox checked={formData.allergens.includes(allergen)} color="warning" />
-                      <Typography sx={{ ml: 1 }}>{allergen}</Typography>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
 
             {/* Size Pricing */}
             <Grid item xs={12}>
@@ -1051,21 +853,66 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
-      >
-        <Alert 
-          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
-          severity={snackbar.severity}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Box>
-  );
-};
+       {/* Delete Confirmation Dialog */}
+       <Dialog 
+         open={deleteDialogOpen} 
+         onClose={handleDeleteCancel}
+         maxWidth="xs"
+         fullWidth
+         PaperProps={{
+           sx: {
+             backgroundColor: theme.palette.background.paper,
+           }
+         }}
+       >
+         <DialogTitle sx={{ color: theme.palette.text.primary }}>
+           Delete Menu Item
+         </DialogTitle>
+         <DialogContent>
+           <Typography sx={{ color: theme.palette.text.primary }}>
+             Are you sure you want to delete "{itemToDelete?.name}"? This action cannot be undone.
+           </Typography>
+         </DialogContent>
+         <DialogActions>
+           <Button 
+             onClick={handleDeleteCancel}
+             disabled={loading}
+             sx={{ color: theme.palette.text.secondary }}
+           >
+             Cancel
+           </Button>
+           <Button 
+             onClick={handleDeleteConfirm}
+             variant="contained"
+             disabled={loading}
+             sx={{ 
+               bgcolor: '#f44336',
+               '&:hover': {
+                 bgcolor: '#d32f2f',
+               }
+             }}
+             startIcon={loading ? <CircularProgress size={16} /> : <Delete />}
+           >
+             {loading ? 'Deleting...' : 'Delete'}
+           </Button>
+         </DialogActions>
+       </Dialog>
 
-export default MenuManagement;
+       {/* Snackbar */}
+       <Snackbar
+         open={snackbar.open}
+         autoHideDuration={6000}
+         onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+       >
+         <Alert 
+           onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} 
+           severity={snackbar.severity}
+         >
+           {snackbar.message}
+         </Alert>
+       </Snackbar>
+     </Box>
+   );
+ };
+ 
+ export default MenuManagement;

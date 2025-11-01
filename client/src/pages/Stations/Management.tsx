@@ -23,10 +23,15 @@ import {
   Warning,
   CheckCircle,
   Restaurant,
+  Add,
+  LocalOffer,
 } from '@mui/icons-material';
 import SalesChart from '../../components/Charts/SalesChart';
 import WeatherWidget from '../../components/Widgets/WeatherWidget';
 import MenuManagement from '../../components/Management/MenuManagement';
+import AddOnsManagement from '../../components/Management/AddOnsManagement';
+import DiscountManagement from '../../components/Management/DiscountManagement';
+import { API_ENDPOINTS } from '../../config/api';
 
 const Management: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -47,7 +52,7 @@ const Management: React.FC = () => {
     const fetchManagementData = async () => {
       try {
         // Fetch dashboard data
-        const dashboardResponse = await fetch('http://localhost:5000/api/analytics/dashboard');
+        const dashboardResponse = await fetch(API_ENDPOINTS.ANALYTICS_DASHBOARD);
         if (dashboardResponse.ok) {
           const dashboardData = await dashboardResponse.json();
           setManagementData(prev => ({
@@ -63,7 +68,7 @@ const Management: React.FC = () => {
         }
 
         // Fetch staff performance data
-        const staffResponse = await fetch('http://localhost:5000/api/analytics/staff');
+        const staffResponse = await fetch(API_ENDPOINTS.ANALYTICS_STAFF);
         if (staffResponse.ok) {
           const staffData = await staffResponse.json();
           setManagementData(prev => ({
@@ -147,6 +152,18 @@ const Management: React.FC = () => {
             iconPosition="start"
             sx={{ textTransform: 'none' }}
           />
+          <Tab 
+            label="Add-Ons Management" 
+            icon={<Add />} 
+            iconPosition="start"
+            sx={{ textTransform: 'none' }}
+          />
+          <Tab 
+            label="Discount Codes" 
+            icon={<LocalOffer />} 
+            iconPosition="start"
+            sx={{ textTransform: 'none' }}
+          />
         </Tabs>
       </Box>
 
@@ -222,7 +239,7 @@ const Management: React.FC = () => {
                   <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
                     Sales Overview
                   </Typography>
-                  <SalesChart />
+                  <SalesChart period="today" />
                 </CardContent>
               </Card>
             </Grid>
@@ -441,6 +458,14 @@ const Management: React.FC = () => {
 
       {activeTab === 1 && (
         <MenuManagement />
+      )}
+
+      {activeTab === 2 && (
+        <AddOnsManagement />
+      )}
+
+      {activeTab === 3 && (
+        <DiscountManagement />
       )}
     </Box>
   );

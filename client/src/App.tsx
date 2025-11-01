@@ -15,9 +15,13 @@ import Settings from './pages/Settings/Settings';
 import Login from './pages/Auth/Login';
 import Signup from './pages/Auth/Signup';
 
+// Additional pages
+import Orders from './pages/Orders/Orders';
+import Loyalty from './pages/Loyalty/Loyalty';
+
 // Station-specific pages
 import FrontCounter from './pages/Stations/FrontCounter';
-import Kitchen from './pages/Stations/Kitchen';
+import KitchenOrders from './pages/Stations/Kitchen';
 import Management from './pages/Stations/Management';
 
 function App() {
@@ -47,11 +51,14 @@ function App() {
           {/* Core functionality */}
           <Route path="inventory" element={<Inventory />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="orders" element={<Orders />} />
+          <Route path="loyalty" element={<Loyalty />} />
           <Route path="settings" element={<Settings />} />
           
           {/* Station-specific interfaces */}
           <Route path="station/front-counter" element={<FrontCounter />} />
-          <Route path="station/kitchen" element={<Kitchen />} />
+          <Route path="station/orders" element={<KitchenOrders />} />
+          <Route path="station/kitchen" element={<KitchenOrders />} />
           <Route path="station/management" element={<Management />} />
         </Route>
         

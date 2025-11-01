@@ -20,6 +20,7 @@ import {
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
 import { notify } from '../../utils/notifications';
+import { API_ENDPOINTS } from '../../config/api';
 
 interface KitchenOrder {
   id: string;
@@ -41,6 +42,7 @@ interface KitchenOrder {
   status: 'pending' | 'preparing' | 'ready' | 'completed';
   station: string;
   totalAmount: number;
+  total?: number;
   createdAt: string;
   estimatedPrepTime: number;
   actualPrepTime?: number;
@@ -50,8 +52,8 @@ interface KitchenOrder {
   kitchenNotes?: string;
 }
 
-const Kitchen: React.FC = () => {
-  const { socket, joinStation, emitOrderUpdate, syncOrderData } = useSocket();
+const Orders: React.FC = () => {
+  const { socket, joinStation, emitOrderUpdate } = useSocket();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -61,17 +63,27 @@ const Kitchen: React.FC = () => {
     try {
       setIsRefreshing(true);
       // Fetch only non-completed orders for kitchen
-      const response = await fetch('http://localhost:5000/api/orders?status=pending,preparing,ready');
+      const response = await fetch(API_ENDPOINTS.ORDERS_BY_STATUS('pending,preparing,ready'));
       if (response.ok) {
         const result = await response.json();
         // Double filter to ensure no completed orders slip through
-        const kitchenOrders = result.data.filter((order: KitchenOrder) => 
-          order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
-        );
+        const kitchenOrders = result.data
+          .filter((order: KitchenOrder) => 
+            order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
+          )
+          .map((order: KitchenOrder) => ({
+            ...order,
+            createdAt: order.createdAt || new Date().toISOString(),
+            estimatedPrepTime: order.estimatedPrepTime || 15,
+          }));
         setOrders(kitchenOrders);
+      } else {
+        console.error('Failed to fetch orders:', response.status);
+        setOrders([]);
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
+      setOrders([]);
     } finally {
       setIsRefreshing(false);
     }
@@ -151,7 +163,7 @@ const Kitchen: React.FC = () => {
 
     try {
       // FIRST: Update the server's API endpoint (this handles local storage and socket broadcast)
-      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+      const response = await fetch(API_ENDPOINTS.ORDER_STATUS(orderId), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -165,15 +177,6 @@ const Kitchen: React.FC = () => {
       if (!response.ok) {
         throw new Error(`Server update failed: ${response.status}`);
       }
-
-      // SECOND: Sync with Firebase Functions for multi-device synchronization
-      await syncOrderData(orderId, 'kitchen', 'status_update', {
-        status: newStatus,
-        updatedAt: new Date().toISOString(),
-        actualPrepTime: newStatus === 'completed' ? 
-          Math.floor((Date.now() - new Date(orders.find(o => o.id === orderId)?.createdAt || Date.now()).getTime()) / 60000) : 
-          null
-      });
 
       // Show notification when order is ready
       if (newStatus === 'ready') {
@@ -215,7 +218,8 @@ const Kitchen: React.FC = () => {
     
     // Refresh orders when joining kitchen station to ensure latest data
     fetchOrders();
-  }, [joinStation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const pendingOrders = orders.filter(order => order.status === 'pending');
   const preparingOrders = orders.filter(order => order.status === 'preparing');
@@ -225,7 +229,7 @@ const Kitchen: React.FC = () => {
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          Kitchen Station
+          Orders
         </Typography>
         <Button
           variant="outlined"
@@ -488,7 +492,7 @@ const Kitchen: React.FC = () => {
                         Prep time: {order.actualPrepTime || order.estimatedPrepTime}min
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: '#8B4513' }}>
-                        ₱{order.totalAmount.toFixed(2)}
+                        ₱{(order.totalAmount || order.total || 0).toFixed(2)}
                       </Typography>
                     </Box>
                     
@@ -515,4 +519,4 @@ const Kitchen: React.FC = () => {
   );
 };
 
-export default Kitchen;
+export default Orders;

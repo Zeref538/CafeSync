@@ -21,7 +21,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import WeatherWidget from '../../components/Widgets/WeatherWidget';
 import SalesChart from '../../components/Charts/SalesChart';
-import QuickActions from '../../components/Dashboard/QuickActions';
+import { API_ENDPOINTS } from '../../config/api';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -40,7 +40,7 @@ const Dashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     try {
       setIsRefreshing(true);
-      const response = await fetch('http://localhost:5000/api/analytics/dashboard');
+      const response = await fetch(API_ENDPOINTS.ANALYTICS_DASHBOARD);
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -247,9 +247,9 @@ const Dashboard: React.FC = () => {
           <Card sx={{ height: 400 }}>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                Sales Overview
+                Sales Overview (Today)
               </Typography>
-              <SalesChart />
+              <SalesChart period="today" />
             </CardContent>
           </Card>
         </Grid>
@@ -257,11 +257,6 @@ const Dashboard: React.FC = () => {
         {/* Weather Widget */}
         <Grid item xs={12} lg={4}>
           <WeatherWidget />
-        </Grid>
-
-        {/* Quick Actions */}
-        <Grid item xs={12}>
-          <QuickActions />
         </Grid>
       </Grid>
     </Box>

@@ -11,22 +11,37 @@ import {
   Add,
   Receipt,
   Inventory,
-  People,
   Analytics,
-  Settings,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+
+interface Action {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+  onClick: () => void;
+  requiredPermission?: string;
+}
 
 const QuickActions: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const actions = [
+  const hasPermission = (permission: string | undefined): boolean => {
+    if (!user || !permission) return true;
+    return user.permissions.includes('all') || user.permissions.includes(permission);
+  };
+
+  const allActions: Action[] = [
     {
       title: 'New Order',
       description: 'Take a new customer order',
       icon: <Add />,
       color: '#4caf50',
       onClick: () => navigate('/station/front-counter'),
+      requiredPermission: 'orders',
     },
     {
       title: 'View Orders',
@@ -34,6 +49,7 @@ const QuickActions: React.FC = () => {
       icon: <Receipt />,
       color: '#2196f3',
       onClick: () => navigate('/orders'),
+      requiredPermission: 'orders',
     },
     {
       title: 'Inventory',
@@ -41,13 +57,7 @@ const QuickActions: React.FC = () => {
       icon: <Inventory />,
       color: '#ff9800',
       onClick: () => navigate('/inventory'),
-    },
-    {
-      title: 'Customers',
-      description: 'Manage loyalty program',
-      icon: <People />,
-      color: '#9c27b0',
-      onClick: () => navigate('/loyalty'),
+      requiredPermission: 'inventory',
     },
     {
       title: 'Analytics',
@@ -55,33 +65,26 @@ const QuickActions: React.FC = () => {
       icon: <Analytics />,
       color: '#f44336',
       onClick: () => navigate('/analytics'),
-    },
-    {
-      title: 'Settings',
-      description: 'Configure system',
-      icon: <Settings />,
-      color: '#607d8b',
-      onClick: () => navigate('/settings'),
+      requiredPermission: 'analytics',
     },
   ];
 
+  // Filter actions based on user permissions
+  const actions = allActions.filter(action => hasPermission(action.requiredPermission));
+
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card>
       <CardContent>
-        <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-          Quick Actions
-        </Typography>
-        
         <Grid container spacing={2}>
           {actions.map((action, index) => (
-            <Grid item xs={6} sm={4} key={index}>
+            <Grid item xs={6} sm={4} md={2} key={index}>
               <Button
                 fullWidth
                 variant="outlined"
                 startIcon={action.icon}
                 onClick={action.onClick}
                 sx={{
-                  height: 80,
+                  height: { xs: 100, sm: 90 },
                   flexDirection: 'column',
                   textAlign: 'center',
                   borderColor: action.color,
@@ -95,7 +98,7 @@ const QuickActions: React.FC = () => {
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
                   {action.title}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                   {action.description}
                 </Typography>
               </Button>

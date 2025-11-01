@@ -22,6 +22,10 @@ import {
   DialogContent,
   DialogActions,
   Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Search,
@@ -33,6 +37,7 @@ import {
   ShoppingCart,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
+import { API_ENDPOINTS, API_BASE } from '../../config/api';
 
 interface InventoryItem {
   id: string;
@@ -59,19 +64,29 @@ const Inventory: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [formData, setFormData] = useState<Partial<InventoryItem>>({
+    name: '',
+    category: '',
+    currentStock: 0,
+    minStock: 0,
+    maxStock: 0,
+    unit: '',
+    costPerUnit: 0,
+    supplier: '',
+    location: '',
+  });
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-
-  // API base URL
-  const API_BASE = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
 
   // Fetch inventory from API
   const fetchInventory = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`${API_BASE}/api/inventory`);
+      const response = await fetch(API_ENDPOINTS.INVENTORY);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -138,7 +153,7 @@ const Inventory: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [API_BASE]);
+  }, []);
 
   // Load inventory on component mount
   useEffect(() => {
@@ -214,6 +229,95 @@ const Inventory: React.FC = () => {
   // Handle refresh button
   const handleRefresh = () => {
     fetchInventory();
+  };
+
+  // Handle Add Item button
+  const handleAddItem = () => {
+    setFormData({
+      name: '',
+      category: '',
+      currentStock: 0,
+      minStock: 0,
+      maxStock: 0,
+      unit: '',
+      costPerUnit: 0,
+      supplier: '',
+      location: '',
+    });
+    setAddDialogOpen(true);
+    setIsEditMode(false);
+  };
+
+  // Handle Edit button
+  const handleEditItem = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setFormData(item);
+    setEditDialogOpen(true);
+    setIsEditMode(true);
+  };
+
+  // Handle Reorder button
+  const handleReorder = async (item: InventoryItem) => {
+    try {
+      await updateStock(item.id, item.maxStock, 'set', 'Automatic reorder - Low stock alert');
+      setSnackbarMessage(`Reorder initiated for ${item.name}`);
+      setSnackbarOpen(true);
+    } catch (err) {
+      console.error('Error reordering:', err);
+    }
+  };
+
+  // Handle Save (Add/Edit)
+  const handleSaveItem = async () => {
+    try {
+      setLoading(true);
+      
+      if (isEditMode && selectedItem) {
+        // Update existing item
+        const response = await fetch(`${API_BASE}/api/inventory/${selectedItem.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...formData,
+            id: selectedItem.id,
+            lastRestocked: selectedItem.lastRestocked,
+          }),
+        });
+
+        if (response.ok) {
+          setEditDialogOpen(false);
+          await fetchInventory();
+          setSnackbarMessage('Item updated successfully');
+          setSnackbarOpen(true);
+        }
+      } else {
+        // Add new item
+        const newItem = {
+          ...formData,
+          id: `item-${Date.now()}`,
+          lastRestocked: new Date().toISOString(),
+        };
+
+        const response = await fetch(`${API_BASE}/api/inventory`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newItem),
+        });
+
+        if (response.ok) {
+          setAddDialogOpen(false);
+          await fetchInventory();
+          setSnackbarMessage('Item added successfully');
+          setSnackbarOpen(true);
+        }
+      }
+    } catch (err) {
+      console.error('Error saving item:', err);
+      setSnackbarMessage('Failed to save item');
+      setSnackbarOpen(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Filter inventory based on search and category
@@ -384,6 +488,7 @@ const Inventory: React.FC = () => {
             <Button
               variant="contained"
               startIcon={<Add />}
+              onClick={handleAddItem}
               sx={{ textTransform: 'none' }}
             >
               Add Item
@@ -480,15 +585,13 @@ const Inventory: React.FC = () => {
                             variant="contained"
                             color="error"
                             startIcon={<ShoppingCart />}
+                            onClick={() => handleReorder(item)}
                             sx={{ textTransform: 'none' }}
                           >
                             Reorder
                           </Button>
                         )}
-                        <IconButton size="small" onClick={() => {
-                          setSelectedItem(item);
-                          setEditDialogOpen(true);
-                        }}>
+                        <IconButton size="small" onClick={() => handleEditItem(item)}>
                           <Edit />
                         </IconButton>
                       </Box>
@@ -515,53 +618,152 @@ const Inventory: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Stock Update Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Update Stock - {selectedItem?.name}</DialogTitle>
+      {/* Add/Edit Item Dialog */}
+      <Dialog open={addDialogOpen || editDialogOpen} onClose={() => {
+        setAddDialogOpen(false);
+        setEditDialogOpen(false);
+        setFormData({
+          name: '',
+          category: '',
+          currentStock: 0,
+          minStock: 0,
+          maxStock: 0,
+          unit: '',
+          costPerUnit: 0,
+          supplier: '',
+          location: '',
+        });
+      }} maxWidth="md" fullWidth>
+        <DialogTitle>{isEditMode ? 'Edit Inventory Item' : 'Add New Inventory Item'}</DialogTitle>
         <DialogContent>
-          <Box sx={{ pt: 2 }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Current Stock: {selectedItem?.currentStock} {selectedItem?.unit}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  if (selectedItem) {
-                    updateStock(selectedItem.id, 10, 'add', 'Manual restock');
-                    setEditDialogOpen(false);
-                  }
+          <Grid container spacing={3} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Item Name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
+            </Grid>
+            
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={formData.category}
+                  label="Category"
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                >
+                  <MenuItem value="coffee">Coffee</MenuItem>
+                  <MenuItem value="dairy">Dairy</MenuItem>
+                  <MenuItem value="syrups">Syrups</MenuItem>
+                  <MenuItem value="pastries">Pastries</MenuItem>
+                  <MenuItem value="cups">Cups & Packaging</MenuItem>
+                  <MenuItem value="other">Other</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Current Stock"
+                type="number"
+                value={formData.currentStock}
+                onChange={(e) => setFormData({ ...formData, currentStock: Number(e.target.value) })}
+                required
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Min Stock"
+                type="number"
+                value={formData.minStock}
+                onChange={(e) => setFormData({ ...formData, minStock: Number(e.target.value) })}
+                required
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Max Stock"
+                type="number"
+                value={formData.maxStock}
+                onChange={(e) => setFormData({ ...formData, maxStock: Number(e.target.value) })}
+                required
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth>
+                <InputLabel>Unit</InputLabel>
+                <Select
+                  value={formData.unit}
+                  label="Unit"
+                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                >
+                  <MenuItem value="lbs">Lbs</MenuItem>
+                  <MenuItem value="kg">Kg</MenuItem>
+                  <MenuItem value="g">Grams</MenuItem>
+                  <MenuItem value="oz">Ounces</MenuItem>
+                  <MenuItem value="gallons">Gallons</MenuItem>
+                  <MenuItem value="liters">Liters</MenuItem>
+                  <MenuItem value="bottles">Bottles</MenuItem>
+                  <MenuItem value="packs">Packs</MenuItem>
+                  <MenuItem value="pieces">Pieces</MenuItem>
+                  <MenuItem value="boxes">Boxes</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Cost Per Unit"
+                type="number"
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">₱</InputAdornment>,
                 }}
-              >
-                Add 10 {selectedItem?.unit}
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  if (selectedItem) {
-                    updateStock(selectedItem.id, 5, 'subtract', 'Used for orders');
-                    setEditDialogOpen(false);
-                  }
-                }}
-              >
-                Subtract 5 {selectedItem?.unit}
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  if (selectedItem) {
-                    updateStock(selectedItem.id, selectedItem.maxStock, 'set', 'Full restock');
-                    setEditDialogOpen(false);
-                  }
-                }}
-              >
-                Set to Max ({selectedItem?.maxStock} {selectedItem?.unit})
-              </Button>
-            </Box>
-          </Box>
+                value={formData.costPerUnit}
+                onChange={(e) => setFormData({ ...formData, costPerUnit: Number(e.target.value) })}
+                required
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Supplier"
+                value={formData.supplier}
+                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+                required
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Location"
+                placeholder="e.g., storage-room-a, refrigerator-1"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                required
+              />
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => {
+            setAddDialogOpen(false);
+            setEditDialogOpen(false);
+          }}>Cancel</Button>
+          <Button variant="contained" onClick={handleSaveItem} disabled={loading}>
+            {loading ? 'Saving...' : 'Save'}
+          </Button>
         </DialogActions>
       </Dialog>
 

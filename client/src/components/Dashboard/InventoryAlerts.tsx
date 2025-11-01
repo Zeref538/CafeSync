@@ -21,6 +21,7 @@ import {
   TrendingDown,
   ShoppingCart,
 } from '@mui/icons-material';
+import { API_ENDPOINTS } from '../../config/api';
 
 interface InventoryAlert {
   id: string;
@@ -42,15 +43,12 @@ const InventoryAlerts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // API base URL
-  const API_BASE = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
-
   // Fetch low stock items from API
   const fetchLowStockItems = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`${API_BASE}/api/inventory/alerts/low-stock`);
+      const response = await fetch(API_ENDPOINTS.INVENTORY_ALERTS);
       
       if (!response.ok) {
         // @ts-ignore - TypeScript strict mode issue with Error constructor
