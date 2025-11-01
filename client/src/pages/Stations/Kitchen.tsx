@@ -11,12 +11,19 @@ import {
   LinearProgress,
   Divider,
   Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
+  useTheme,
 } from '@mui/material';
 import {
   Restaurant,
   CheckCircle,
   AccessTime,
   Refresh,
+  Cancel,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
 import { notify } from '../../utils/notifications';
@@ -39,7 +46,7 @@ interface KitchenOrder {
     unitPrice?: number;
     price?: number;
   }>;
-  status: 'pending' | 'preparing' | 'ready' | 'completed';
+  status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
   station: string;
   totalAmount: number;
   total?: number;
@@ -57,6 +64,8 @@ const Orders: React.FC = () => {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<KitchenOrder | null>(null);
 
   // Load orders from server (only active orders for kitchen)
   const fetchOrders = async () => {
@@ -104,12 +113,12 @@ const Orders: React.FC = () => {
           const existingIndex = prev.findIndex(order => order.id === data.id);
           const existingOrder = prev[existingIndex];
           
-          // Handle status changes
+          // Handle status changes - check orderAlerts setting
           if (existingOrder && existingOrder.status !== data.status) {
             if (data.status === 'ready') {
-              notify.success(`Order #${data.orderNumber} is ready!`, true);
+              notify.success(`Order #${data.orderNumber} is ready!`, true, true, 'orderAlerts');
             } else if (data.status === 'preparing' && existingOrder.status === 'pending') {
-              notify.info(`Order #${data.orderNumber} is being prepared`, false);
+              notify.info(`Order #${data.orderNumber} is being prepared`, false, true, 'orderAlerts');
             }
           }
           
@@ -127,9 +136,9 @@ const Orders: React.FC = () => {
           } else {
             // Add new order only if it's pending/preparing/ready
             if (data.status === 'pending' || data.status === 'preparing' || data.status === 'ready') {
-              // Notify about new pending orders
+              // Notify about new pending orders - check orderAlerts setting
               if (data.status === 'pending') {
-                notify.info(`New order #${data.orderNumber} received`, true);
+                notify.info(`New order #${data.orderNumber} received`, true, true, 'orderAlerts');
               }
               return [...prev, data];
             }
@@ -153,8 +162,8 @@ const Orders: React.FC = () => {
         order.id === orderId ? { ...order, status: newStatus as any } : order
       );
       
-      // If order is completed, remove it from kitchen view immediately
-      if (newStatus === 'completed') {
+      // If order is completed or cancelled, remove it from kitchen view immediately
+      if (newStatus === 'completed' || newStatus === 'cancelled') {
         return updated.filter(order => order.id !== orderId);
       }
       
@@ -178,22 +187,49 @@ const Orders: React.FC = () => {
         throw new Error(`Server update failed: ${response.status}`);
       }
 
+      // Trigger notification refresh (notification created in backend)
+      window.dispatchEvent(new CustomEvent('refresh-notifications'));
+
       // Show notification when order is ready
       if (newStatus === 'ready') {
         const order = orders.find(o => o.id === orderId);
         notify.success(`Order #${order?.orderNumber} is ready!`, true);
       }
+      
+      // Show notification when order is cancelled
+      if (newStatus === 'cancelled') {
+        const order = orders.find(o => o.id === orderId);
+        notify.warning(`Order #${order?.orderNumber} has been cancelled`, true);
+      }
 
       console.log(`Order ${orderId} status updated to ${newStatus}`);
     } catch (error) {
       console.error('Error updating order status:', error);
-      // Revert local state on error - but don't re-add completed orders
-      if (newStatus !== 'completed') {
+      // Revert local state on error - but don't re-add completed or cancelled orders
+      if (newStatus !== 'completed' && newStatus !== 'cancelled') {
         setOrders(prev => prev.map(order =>
           order.id === orderId ? { ...order, status: 'pending' as any } : order
         ));
       }
     }
+  };
+
+  const handleCancelClick = (order: KitchenOrder) => {
+    setOrderToCancel(order);
+    setCancelDialogOpen(true);
+  };
+
+  const handleCancelConfirm = async () => {
+    if (orderToCancel) {
+      await handleStatusChange(orderToCancel.id, 'cancelled');
+      setCancelDialogOpen(false);
+      setOrderToCancel(null);
+    }
+  };
+
+  const handleCancelClose = () => {
+    setCancelDialogOpen(false);
+    setOrderToCancel(null);
   };
 
 
@@ -225,56 +261,128 @@ const Orders: React.FC = () => {
   const preparingOrders = orders.filter(order => order.status === 'preparing');
   const readyOrders = orders.filter(order => order.status === 'ready');
 
+  const theme = useTheme();
+
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+          <Box>
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                fontWeight: 700,
+                mb: 1,
+                background: theme.palette.mode === 'dark'
+                  ? 'linear-gradient(135deg, #fff 0%, #e0e0e0 100%)'
+                  : 'linear-gradient(135deg, #6B4423 0%, #8B5A3C 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
           Orders
         </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Manage and track order status
+            </Typography>
+          </Box>
         <Button
           variant="outlined"
           startIcon={<Refresh />}
           onClick={fetchOrders}
           disabled={isRefreshing}
-          sx={{ textTransform: 'none' }}
+            sx={{ 
+              textTransform: 'none',
+              fontWeight: 600,
+              borderWidth: 2,
+              '&:hover': {
+                borderWidth: 2,
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.3s ease',
+            }}
         >
           {isRefreshing ? 'Refreshing...' : 'Refresh Orders'}
         </Button>
+        </Box>
       </Box>
 
       {/* Kitchen Stats */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={4}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#ff9800' }}>
+          <Card sx={{ 
+            position: 'relative',
+            overflow: 'hidden',
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 248, 245, 0.9) 100%)',
+            borderLeft: '4px solid #ff9800',
+          }}>
+            <CardContent sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 700, 
+                color: '#ff9800',
+                background: 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
                 {pendingOrders.length}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mt: 0.5 }}>
                 Pending Orders
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={4}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#2196f3' }}>
+          <Card sx={{ 
+            position: 'relative',
+            overflow: 'hidden',
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 248, 245, 0.9) 100%)',
+            borderLeft: '4px solid #2196f3',
+          }}>
+            <CardContent sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 700, 
+                color: '#2196f3',
+                background: 'linear-gradient(135deg, #2196f3 0%, #42a5f5 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
                 {preparingOrders.length}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mt: 0.5 }}>
                 In Progress
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={4}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#4caf50' }}>
+          <Card sx={{ 
+            position: 'relative',
+            overflow: 'hidden',
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 248, 245, 0.9) 100%)',
+            borderLeft: '4px solid #4caf50',
+          }}>
+            <CardContent sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 700, 
+                color: '#4caf50',
+                background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
                 {readyOrders.length}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mt: 0.5 }}>
                 Ready for Pickup
               </Typography>
             </CardContent>
@@ -333,21 +441,36 @@ const Orders: React.FC = () => {
                       {order.items.map(item => `${item.name} (${item.quantity})`).join(', ')}
                     </Typography>
                     
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
                       <Typography variant="body2" color="text.secondary">
                         Est. {order.estimatedPrepTime}min
                       </Typography>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStatusChange(order.id, 'preparing');
-                        }}
-                        sx={{ textTransform: 'none' }}
-                      >
-                        Start
-                      </Button>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStatusChange(order.id, 'preparing');
+                          }}
+                          sx={{ textTransform: 'none' }}
+                        >
+                          Start
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          startIcon={<Cancel />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCancelClick(order);
+                          }}
+                          sx={{ textTransform: 'none' }}
+                        >
+                          Cancel
+                        </Button>
+                      </Box>
                     </Box>
                   </Paper>
                 ))}
@@ -422,18 +545,31 @@ const Orders: React.FC = () => {
                       />
                     </Box>
                     
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      color="success"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStatusChange(order.id, 'ready');
-                      }}
-                      sx={{ textTransform: 'none' }}
-                    >
-                      Mark Ready
-                    </Button>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStatusChange(order.id, 'ready');
+                        }}
+                        sx={{ textTransform: 'none', flex: 1 }}
+                      >
+                        Mark Ready
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        startIcon={<Cancel />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCancelClick(order);
+                        }}
+                        sx={{ textTransform: 'none' }}
+                      >
+                        Cancel
+                      </Button>
+                    </Box>
                   </Paper>
                 ))}
               </List>
@@ -515,6 +651,35 @@ const Orders: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Cancel Confirmation Dialog */}
+      <Dialog
+        open={cancelDialogOpen}
+        onClose={handleCancelClose}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Cancel Order</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to cancel Order #{orderToCancel?.orderNumber}? 
+            This action cannot be undone and will be reflected in analytics.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelClose} color="inherit">
+            Keep Order
+          </Button>
+          <Button
+            onClick={handleCancelConfirm}
+            variant="contained"
+            color="error"
+            startIcon={<Cancel />}
+          >
+            Cancel Order
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

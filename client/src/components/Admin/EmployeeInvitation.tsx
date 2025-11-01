@@ -38,7 +38,15 @@ import {
   updateEmployeeStatus,
   EmployeeRecord,
 } from '../../utils/employeeUtilsFirestore';
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  fetchSignInMethodsForEmail,
+  signInWithPopup,
+  GoogleAuthProvider,
+  linkWithCredential,
+  EmailAuthProvider,
+} from 'firebase/auth';
 import { auth } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -79,14 +87,46 @@ const EmployeeInvitation: React.FC = () => {
     console.log('- Config:', auth.config);
   };
 
+  // Strong password validation function
+  const validateStrongPassword = (password: string): { isValid: boolean; error?: string } => {
+    // Minimum 8 characters
+    if (password.length < 8) {
+      return { isValid: false, error: 'Password must be at least 8 characters long' };
+    }
+    
+    // At least one uppercase letter
+    if (!/[A-Z]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one uppercase letter' };
+    }
+    
+    // At least one lowercase letter
+    if (!/[a-z]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one lowercase letter' };
+    }
+    
+    // At least one number
+    if (!/[0-9]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one number' };
+    }
+    
+    // At least one special character
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
+      return { isValid: false, error: 'Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)' };
+    }
+    
+    return { isValid: true };
+  };
+
   const handleInviteEmployee = async () => {
     if (!newEmail || !newName || !newPassword || !newRole) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters long');
+    // Validate strong password
+    const passwordValidation = validateStrongPassword(newPassword);
+    if (!passwordValidation.isValid) {
+      toast.error(passwordValidation.error || 'Password does not meet requirements');
       return;
     }
 
@@ -94,23 +134,68 @@ const EmployeeInvitation: React.FC = () => {
       // Debug Firebase Auth status
       checkFirebaseAuthStatus();
       
-      // First create Firebase account
-      console.log('Creating Firebase account for:', newEmail);
-      const userCredential = await createUserWithEmailAndPassword(auth, newEmail, newPassword);
-      console.log('Firebase account created successfully:', userCredential.user.uid);
+      // First add to employee whitelist in Firestore
+      console.log('Adding employee to Firestore:', newEmail);
+      const firestoreResult = await addEmployee(newEmail, newName, newRole, user?.email || 'system');
       
-      // Then add to employee whitelist (async)
-      const success = await addEmployee(newEmail, newName, newRole, user?.email || 'system');
-      
-      if (!success) {
-        // If whitelist addition fails, we should clean up the Firebase account
-        console.error('Failed to add to whitelist, cleaning up Firebase account');
-        toast.error('Failed to add employee to whitelist. Please try again.');
+      if (!firestoreResult.success) {
+        toast.error(`Failed to add employee to whitelist: ${firestoreResult.error || 'Unknown error'}`);
+        console.error('Firestore error:', firestoreResult.error);
         return;
       }
-
-      // Sign out the newly created user (since we don't want to stay logged in as them)
-      await signOut(auth);
+      
+      console.log('✅ Employee added to Firestore successfully');
+      
+      // Check what sign-in methods are available for this email
+      let signInMethods: string[] = [];
+      try {
+        signInMethods = await fetchSignInMethodsForEmail(auth, newEmail);
+        console.log('🔍 Available sign-in methods for', newEmail, ':', signInMethods);
+      } catch (checkError: any) {
+        console.log('⚠️ Could not check sign-in methods (account may not exist):', checkError);
+      }
+      
+      // Then create or link Firebase Auth account
+      let userCredential;
+      try {
+        if (signInMethods.includes('google.com') && !signInMethods.includes('password')) {
+          // Account exists with Google sign-in only - we need to link email/password
+          // Note: This requires the user to sign in with Google first, then link
+          // For now, we'll create the Firestore entry and they can link later via Settings
+          console.log('ℹ️ Google account exists for', newEmail, '- email/password will be linked when user signs in with Google');
+          toast.success(`Account exists with Google sign-in. User can link email/password in Settings after signing in with Google.`);
+        } else {
+          // Try to create new email/password account
+        console.log('Creating Firebase Auth account for:', newEmail);
+        userCredential = await createUserWithEmailAndPassword(auth, newEmail, newPassword);
+        console.log('✅ Firebase Auth account created successfully:', userCredential.user.uid);
+        }
+      } catch (authError: any) {
+        // If Firebase Auth account already exists, check if we can link
+        if (authError.code === 'auth/email-already-in-use') {
+          console.log('ℹ️ Firebase Auth account already exists for:', newEmail);
+          
+          if (signInMethods.includes('google.com') && !signInMethods.includes('password')) {
+            // Google account exists - they can link password later via Settings
+            toast.success(`Account exists with Google sign-in. User can link email/password in Settings.`);
+          } else if (signInMethods.includes('password')) {
+            // Password already exists - update it
+            toast.success(`Account already exists with password. User can update it in Settings.`);
+          } else {
+            // Some other auth method exists
+            toast.success(`Account exists with different sign-in method. User can link email/password in Settings.`);
+          }
+        } else {
+          // For other auth errors, we should remove the Firestore entry or handle it
+          console.error('❌ Error creating Firebase Auth account:', authError);
+          toast.error(`Firestore entry created, but Firebase Auth failed: ${authError.message}. Employee can still use Sign Up to create their account.`);
+        }
+      }
+      
+      // Sign out the newly created user (if we created one)
+      if (userCredential) {
+        await signOut(auth);
+      }
       
       toast.success(`${newName} has been added as an employee! They can now sign in with their email and password.`);
       setInviteDialog(false);
@@ -120,18 +205,16 @@ const EmployeeInvitation: React.FC = () => {
       setNewRole('barista');
       loadEmployees();
     } catch (error: any) {
-      console.error('Error creating employee account:', error);
+      console.error('❌ Error creating employee account:', error);
       
-      if (error.code === 'auth/email-already-in-use') {
-        toast.error('An account with this email already exists.');
-      } else if (error.code === 'auth/invalid-email') {
+      if (error.code === 'auth/invalid-email') {
         toast.error('Invalid email address.');
       } else if (error.code === 'auth/weak-password') {
         toast.error('Password should be at least 6 characters.');
       } else if (error.code === 'auth/operation-not-allowed') {
         toast.error('Email/password authentication is not enabled. Please contact the administrator.');
       } else {
-        toast.error(`Failed to create employee account: ${error.message}`);
+        toast.error(`Failed to create employee account: ${error.message || 'Unknown error'}`);
       }
     }
   };
@@ -353,8 +436,34 @@ const EmployeeInvitation: React.FC = () => {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                placeholder="Minimum 6 characters"
-                helperText="Employee will use this password to sign in"
+                placeholder="At least 8 characters with uppercase, lowercase, number & special character"
+                helperText={
+                  newPassword ? (
+                    <Box component="span">
+                      Password must contain:
+                      <Box component="ul" sx={{ m: 0, pl: 2, fontSize: '0.75rem' }}>
+                        <li style={{ color: newPassword.length >= 8 ? 'green' : 'red' }}>
+                          At least 8 characters {newPassword.length >= 8 ? '✓' : '✗'}
+                        </li>
+                        <li style={{ color: /[A-Z]/.test(newPassword) ? 'green' : 'red' }}>
+                          One uppercase letter {/[A-Z]/.test(newPassword) ? '✓' : '✗'}
+                        </li>
+                        <li style={{ color: /[a-z]/.test(newPassword) ? 'green' : 'red' }}>
+                          One lowercase letter {/[a-z]/.test(newPassword) ? '✓' : '✗'}
+                        </li>
+                        <li style={{ color: /[0-9]/.test(newPassword) ? 'green' : 'red' }}>
+                          One number {/[0-9]/.test(newPassword) ? '✓' : '✗'}
+                        </li>
+                        <li style={{ color: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(newPassword) ? 'green' : 'red' }}>
+                          One special character {/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(newPassword) ? '✓' : '✗'}
+                        </li>
+                      </Box>
+                    </Box>
+                  ) : (
+                    'Employee will use this password to sign in. Must be strong password (8+ chars, uppercase, lowercase, number, special char)'
+                  )
+                }
+                error={newPassword ? !validateStrongPassword(newPassword).isValid : false}
               />
               <TextField
                 fullWidth

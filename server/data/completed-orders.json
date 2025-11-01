@@ -729,5 +729,131 @@
       "paymentMethod": "cash",
       "staffId": "27KuSS9mVQV8VYchVtY2dXXtq792"
     }
+  },
+  {
+    "id": "c92d22a2-0b1a-4d77-ad74-c3f86fb268dc",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761481374203",
+        "name": "Hot Americano ",
+        "basePrice": 69,
+        "unitPrice": 69,
+        "price": 69,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "extras": null,
+          "notes": null
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "J283pGISbvbfykCmEN0HfdRNwNo2",
+    "totalAmount": 69,
+    "estimatedPrepTime": 3,
+    "priority": "high",
+    "createdAt": "2025-11-01T05:08:23.742Z",
+    "updatedAt": "2025-11-01T05:08:33.570Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-11-01T05:08:33.570Z",
+    "storedAt": "2025-11-01T05:08:33.570Z",
+    "analysisData": {
+      "totalPrepTime": 0.1638,
+      "orderValue": 69,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "J283pGISbvbfykCmEN0HfdRNwNo2"
+    }
+  },
+  {
+    "id": "1cc5ceba-99b6-485f-95d2-8231f86d6953",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761481374203",
+        "name": "Hot Americano ",
+        "basePrice": 69,
+        "unitPrice": 69,
+        "price": 69,
+        "quantity": 1,
+        "customizations": {
+          "size": "Regular",
+          "extras": null,
+          "notes": null
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "J283pGISbvbfykCmEN0HfdRNwNo2",
+    "totalAmount": 69,
+    "estimatedPrepTime": 3,
+    "priority": "high",
+    "createdAt": "2025-11-01T05:13:33.616Z",
+    "updatedAt": "2025-11-01T05:13:41.843Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-11-01T05:13:41.844Z",
+    "storedAt": "2025-11-01T05:13:41.844Z",
+    "analysisData": {
+      "totalPrepTime": 0.13711666666666666,
+      "orderValue": 69,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "J283pGISbvbfykCmEN0HfdRNwNo2"
+    }
+  },
+  {
+    "id": "656a3dee-580e-4baa-a756-442f8b04d89f",
+    "orderNumber": 1,
+    "customer": "Takeout",
+    "items": [
+      {
+        "id": "1761476432193",
+        "name": "Iced Americano",
+        "basePrice": 59,
+        "unitPrice": 59,
+        "price": 59,
+        "quantity": 1,
+        "customizations": {
+          "size": "Small",
+          "extras": null,
+          "notes": null
+        }
+      }
+    ],
+    "station": "front-counter",
+    "status": "completed",
+    "specialInstructions": "",
+    "paymentMethod": "cash",
+    "staffId": "J283pGISbvbfykCmEN0HfdRNwNo2",
+    "totalAmount": 59,
+    "estimatedPrepTime": 3,
+    "priority": "high",
+    "createdAt": "2025-11-01T05:26:41.655Z",
+    "updatedAt": "2025-11-01T05:26:48.119Z",
+    "kitchenNotes": "",
+    "actualPrepTime": null,
+    "completedAt": "2025-11-01T05:26:48.119Z",
+    "storedAt": "2025-11-01T05:26:48.119Z",
+    "analysisData": {
+      "totalPrepTime": 0.10773333333333333,
+      "orderValue": 59,
+      "itemCount": 1,
+      "customerType": "takeout",
+      "paymentMethod": "cash",
+      "staffId": "J283pGISbvbfykCmEN0HfdRNwNo2"
+    }
   }
 ]

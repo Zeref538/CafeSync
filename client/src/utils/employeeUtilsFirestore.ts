@@ -39,12 +39,18 @@ export const getAllEmployees = async (): Promise<Record<string, EmployeeRecord>>
     const employees: Record<string, EmployeeRecord> = {};
     snapshot.forEach((doc) => {
       const data = doc.data() as EmployeeRecord;
-      employees[data.email.toLowerCase()] = data;
+      // Use doc.id as fallback if email is not in data
+      const emailKey = (data.email || doc.id).toLowerCase();
+      employees[emailKey] = {
+        ...data,
+        email: data.email || doc.id, // Ensure email is set
+      };
     });
     
+    console.log('📋 Loaded employees from Firestore:', Object.keys(employees));
     return employees;
   } catch (error) {
-    console.error('Error loading employees from Firestore:', error);
+    console.error('❌ Error loading employees from Firestore:', error);
     return {};
   }
 };
@@ -52,11 +58,25 @@ export const getAllEmployees = async (): Promise<Record<string, EmployeeRecord>>
 // Check if an email is whitelisted (async version)
 export const isEmployeeWhitelisted = async (email: string): Promise<boolean> => {
   try {
+    const normalizedEmail = email.toLowerCase();
     const employees = await getAllEmployees();
-    const employee = employees[email.toLowerCase()];
-    return employee && employee.status === 'active';
+    const employee = employees[normalizedEmail];
+    
+    console.log('🔍 Checking whitelist for:', normalizedEmail);
+    console.log('🔍 Found employee:', employee ? 'Yes' : 'No');
+    
+    if (!employee) {
+      console.log('❌ Employee not found in Firestore');
+      return false;
+    }
+    
+    console.log('🔍 Employee status:', employee.status);
+    const isActive = employee.status === 'active';
+    console.log('🔍 Is active:', isActive);
+    
+    return isActive;
   } catch (error) {
-    console.error('Error checking employee whitelist:', error);
+    console.error('❌ Error checking employee whitelist:', error);
     return false;
   }
 };
@@ -64,10 +84,38 @@ export const isEmployeeWhitelisted = async (email: string): Promise<boolean> => 
 // Get employee record by email (async version)
 export const getEmployeeByEmail = async (email: string): Promise<EmployeeRecord | null> => {
   try {
+    const normalizedEmail = email.toLowerCase();
+    console.log('🔍 Getting employee by email:', normalizedEmail);
+    
+    // Try direct document lookup first
+    try {
+      const employeesRef = collection(firestore, EMPLOYEES_COLLECTION);
+      const employeeDoc = doc(employeesRef, normalizedEmail);
+      const docSnapshot = await getDoc(employeeDoc);
+      
+      if (docSnapshot.exists()) {
+        const data = docSnapshot.data() as EmployeeRecord;
+        console.log('✅ Found employee via direct lookup:', data);
+        return data;
+      }
+    } catch (directError) {
+      console.log('⚠️ Direct lookup failed, trying getAllEmployees');
+    }
+    
+    // Fallback to getAllEmployees
     const employees = await getAllEmployees();
-    return employees[email.toLowerCase()] || null;
+    const employee = employees[normalizedEmail] || null;
+    
+    if (employee) {
+      console.log('✅ Found employee via getAllEmployees:', employee);
+    } else {
+      console.log('❌ Employee not found:', normalizedEmail);
+      console.log('📋 Available employees:', Object.keys(employees));
+    }
+    
+    return employee;
   } catch (error) {
-    console.error('Error getting employee by email:', error);
+    console.error('❌ Error getting employee by email:', error);
     return null;
   }
 };
@@ -78,7 +126,7 @@ export const addEmployee = async (
   name: string,
   role: 'manager' | 'barista' | 'cashier' | 'kitchen',
   invitedBy: string
-): Promise<boolean> => {
+): Promise<{ success: boolean; error?: string }> => {
   try {
     const employeesRef = collection(firestore, EMPLOYEES_COLLECTION);
     const employeeDoc = doc(employeesRef, email.toLowerCase());
@@ -86,7 +134,25 @@ export const addEmployee = async (
     // Check if employee already exists
     const existingDoc = await getDoc(employeeDoc);
     if (existingDoc.exists()) {
-      throw new Error('Employee already exists');
+      console.log('Employee already exists in Firestore:', email);
+      // If already exists, update it instead of failing
+      const station = getStationForRole(role);
+      const permissions = getPermissionsForRole(role);
+      
+      const updatedEmployee: EmployeeRecord = {
+        email: email.toLowerCase(),
+        name,
+        role,
+        station,
+        permissions,
+        invitedBy,
+        invitedAt: existingDoc.data()?.invitedAt || new Date().toISOString(),
+        status: 'active',
+      };
+      
+      await setDoc(employeeDoc, updatedEmployee, { merge: true });
+      console.log('Employee updated in Firestore:', email);
+      return { success: true };
     }
     
     const station = getStationForRole(role);
@@ -104,11 +170,14 @@ export const addEmployee = async (
     };
     
     await setDoc(employeeDoc, newEmployee);
-    console.log('Employee added to Firestore:', email);
-    return true;
-  } catch (error) {
-    console.error('Error adding employee to Firestore:', error);
-    return false;
+    console.log('✅ Employee added to Firestore:', email);
+    return { success: true };
+  } catch (error: any) {
+    console.error('❌ Error adding employee to Firestore:', error);
+    return { 
+      success: false, 
+      error: error.message || 'Failed to add employee to Firestore. Please check Firestore permissions.' 
+    };
   }
 };
 

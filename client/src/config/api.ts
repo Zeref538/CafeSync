@@ -22,6 +22,7 @@ export const API_ENDPOINTS = {
   ANALYTICS_DASHBOARD: `${API_BASE}/api/analytics/dashboard`,
   ANALYTICS_SALES: (period: string) => `${API_BASE}/api/analytics/sales?period=${period}`,
   ANALYTICS_STAFF: `${API_BASE}/api/analytics/staff`,
+  ANALYTICS_RECOMMENDATIONS: (period: string) => `${API_BASE}/api/analytics/recommendations?period=${period}`,
   
   // Inventory
   INVENTORY: `${API_BASE}/api/inventory`,
@@ -40,6 +41,11 @@ export const API_ENDPOINTS = {
   WEATHER: process.env.NODE_ENV === 'production' 
     ? `${API_BASE}/weather/cafe` 
     : 'http://localhost:8000/weather/cafe',
+  
+  // Notifications
+  NOTIFICATIONS: `${API_BASE}/api/notifications`,
+  MARK_NOTIFICATION_READ: (id: string) => `${API_BASE}/api/notifications/${id}`,
+  MARK_ALL_READ: `${API_BASE}/api/notifications/mark-all-read`,
 };
 
 export default API_BASE;

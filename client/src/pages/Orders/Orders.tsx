@@ -18,6 +18,11 @@ import {
   Tab,
   Avatar,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
 } from '@mui/material';
 import {
   Search,
@@ -28,6 +33,7 @@ import {
   Restaurant,
   Receipt,
   MoreVert,
+  Cancel,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
 import { API_ENDPOINTS } from '../../config/api';
@@ -111,6 +117,8 @@ const Orders: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedTab, setSelectedTab] = useState(0);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
 
   // Filter orders based on search and status
   useEffect(() => {
@@ -131,18 +139,45 @@ const Orders: React.FC = () => {
     setFilteredOrders(filtered);
   }, [orders, searchTerm, statusFilter]);
 
-  const handleStatusChange = (orderId: string, newStatus: string) => {
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    // Update local state immediately
     setOrders(prev => prev.map(order =>
       order.id === orderId ? { ...order, status: newStatus as any } : order
     ));
 
-    // Emit status change via socket
-    emitOrderUpdate({
-      orderId,
-      status: newStatus,
-      station: 'orders',
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      // Update via API
+      const response = await fetch(API_ENDPOINTS.ORDER_STATUS(orderId), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update order status: ${response.status}`);
+      }
+
+      // Trigger notification refresh (notification created in backend)
+      window.dispatchEvent(new CustomEvent('refresh-notifications'));
+
+      // Emit status change via socket
+      emitOrderUpdate({
+        orderId,
+        status: newStatus,
+        station: 'orders',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      // Revert local state on error
+      setOrders(prev => prev.map(order =>
+        order.id === orderId ? { ...order, status: orders.find(o => o.id === orderId)?.status || 'pending' as any } : order
+      ));
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -167,6 +202,24 @@ const Orders: React.FC = () => {
     return icons[status] || <AccessTime />;
   };
 
+  const handleCancelClick = (order: Order) => {
+    setOrderToCancel(order);
+    setCancelDialogOpen(true);
+  };
+
+  const handleCancelConfirm = async () => {
+    if (orderToCancel) {
+      await handleStatusChange(orderToCancel.id, 'cancelled');
+      setCancelDialogOpen(false);
+      setOrderToCancel(null);
+    }
+  };
+
+  const handleCancelClose = () => {
+    setCancelDialogOpen(false);
+    setOrderToCancel(null);
+  };
+
   const getStatusCounts = () => {
     return {
       all: orders.length,
@@ -174,6 +227,7 @@ const Orders: React.FC = () => {
       preparing: orders.filter(o => o.status === 'preparing').length,
       ready: orders.filter(o => o.status === 'ready').length,
       completed: orders.filter(o => o.status === 'completed').length,
+      cancelled: orders.filter(o => o.status === 'cancelled').length,
     };
   };
 
@@ -359,40 +413,78 @@ const Orders: React.FC = () => {
                   <ListItemSecondaryAction>
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       {order.status === 'pending' && (
-                        <Button
-                          size="small"
-                          variant="contained"
-                          onClick={() => handleStatusChange(order.id, 'preparing')}
-                          sx={{ textTransform: 'none' }}
-                        >
-                          Start
-                        </Button>
+                        <>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => handleStatusChange(order.id, 'preparing')}
+                            sx={{ textTransform: 'none' }}
+                          >
+                            Start
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            startIcon={<Cancel />}
+                            onClick={() => handleCancelClick(order)}
+                            sx={{ textTransform: 'none' }}
+                          >
+                            Cancel
+                          </Button>
+                        </>
                       )}
                       {order.status === 'preparing' && (
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="success"
-                          onClick={() => handleStatusChange(order.id, 'ready')}
-                          sx={{ textTransform: 'none' }}
-                        >
-                          Ready
-                        </Button>
+                        <>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            onClick={() => handleStatusChange(order.id, 'ready')}
+                            sx={{ textTransform: 'none' }}
+                          >
+                            Ready
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            startIcon={<Cancel />}
+                            onClick={() => handleCancelClick(order)}
+                            sx={{ textTransform: 'none' }}
+                          >
+                            Cancel
+                          </Button>
+                        </>
                       )}
                       {order.status === 'ready' && (
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="primary"
-                          onClick={() => handleStatusChange(order.id, 'completed')}
-                          sx={{ textTransform: 'none' }}
-                        >
-                          Complete
-                        </Button>
+                        <>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="primary"
+                            onClick={() => handleStatusChange(order.id, 'completed')}
+                            sx={{ textTransform: 'none' }}
+                          >
+                            Complete
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            startIcon={<Cancel />}
+                            onClick={() => handleCancelClick(order)}
+                            sx={{ textTransform: 'none' }}
+                          >
+                            Cancel
+                          </Button>
+                        </>
                       )}
-                      <IconButton size="small">
-                        <MoreVert />
-                      </IconButton>
+                      {order.status !== 'pending' && order.status !== 'preparing' && order.status !== 'ready' && (
+                        <IconButton size="small">
+                          <MoreVert />
+                        </IconButton>
+                      )}
                     </Box>
                   </ListItemSecondaryAction>
                 </ListItem>
@@ -414,6 +506,35 @@ const Orders: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Cancel Confirmation Dialog */}
+      <Dialog
+        open={cancelDialogOpen}
+        onClose={handleCancelClose}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Cancel Order</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to cancel Order #{orderToCancel?.orderNumber}? 
+            This action cannot be undone and will be reflected in analytics.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelClose} color="inherit">
+            Keep Order
+          </Button>
+          <Button
+            onClick={handleCancelConfirm}
+            variant="contained"
+            color="error"
+            startIcon={<Cancel />}
+          >
+            Cancel Order
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

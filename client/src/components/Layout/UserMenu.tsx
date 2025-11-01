@@ -16,19 +16,16 @@ import {
   DialogActions,
   Button,
   useTheme,
-  Badge,
 } from '@mui/material';
 import {
   AccountCircle,
   Settings,
   Logout,
   Person,
-  Notifications,
   Email,
   Business,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
-import NotificationCenter from './NotificationCenter';
 
 const UserMenu: React.FC = () => {
   const { user, logout } = useAuth();
@@ -36,7 +33,6 @@ const UserMenu: React.FC = () => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const open = Boolean(anchorEl);
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -49,11 +45,6 @@ const UserMenu: React.FC = () => {
 
   const handleProfile = () => {
     setProfileOpen(true);
-    handleClose();
-  };
-
-  const handleNotifications = () => {
-    setNotificationsOpen(true);
     handleClose();
   };
 
@@ -93,25 +84,54 @@ const UserMenu: React.FC = () => {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          p: 1,
-          borderRadius: 2,
+          p: 1.5,
+          borderRadius: 3,
           cursor: 'pointer',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          position: 'relative',
+          overflow: 'hidden',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(107, 68, 35, 0.1) 0%, rgba(139, 69, 19, 0.15) 100%)'
+              : 'linear-gradient(135deg, rgba(107, 68, 35, 0.05) 0%, rgba(139, 69, 19, 0.08) 100%)',
+            opacity: 0,
+            transition: 'opacity 0.3s ease',
+          },
           '&:hover': {
             backgroundColor: theme.palette.mode === 'dark' 
               ? 'rgba(255,255,255,0.08)' 
-              : '#f5f5f5',
+              : 'rgba(107, 68, 35, 0.08)',
+            transform: 'translateY(-2px)',
+            boxShadow: theme.palette.mode === 'dark'
+              ? '0 4px 12px rgba(0,0,0,0.3)'
+              : '0 4px 12px rgba(0,0,0,0.1)',
+            '&::before': {
+              opacity: 1,
+            },
           },
         }}
         onClick={handleClick}
       >
         <Avatar
           sx={{
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             backgroundColor: getRoleColor(user.role),
-            fontSize: '0.9rem',
-            fontWeight: 600,
+            fontSize: '0.95rem',
+            fontWeight: 700,
             mr: 2,
+            boxShadow: `0 4px 12px ${getRoleColor(user.role)}40`,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'scale(1.1)',
+              boxShadow: `0 6px 16px ${getRoleColor(user.role)}60`,
+            },
           }}
         >
           {getInitials(user.name)}
@@ -121,7 +141,7 @@ const UserMenu: React.FC = () => {
             variant="subtitle2"
             sx={{
               fontWeight: 600,
-              fontSize: '0.9rem',
+              fontSize: '0.95rem',
               lineHeight: 1.2,
               color: 'text.primary',
             }}
@@ -134,12 +154,28 @@ const UserMenu: React.FC = () => {
               color: 'text.secondary',
               textTransform: 'capitalize',
               fontSize: '0.75rem',
+              fontWeight: 500,
             }}
           >
             {user.role}
           </Typography>
         </Box>
-        <IconButton size="small" sx={{ ml: 1 }}>
+        <IconButton 
+          size="small" 
+          sx={{ 
+            ml: 1,
+            backgroundColor: theme.palette.mode === 'dark'
+              ? 'rgba(255,255,255,0.05)'
+              : 'rgba(107, 68, 35, 0.05)',
+            '&:hover': {
+              backgroundColor: theme.palette.mode === 'dark'
+                ? 'rgba(255,255,255,0.1)'
+                : 'rgba(107, 68, 35, 0.1)',
+              transform: 'scale(1.1)',
+            },
+            transition: 'all 0.2s ease',
+          }}
+        >
           <AccountCircle fontSize="small" />
         </IconButton>
       </Box>
@@ -149,14 +185,47 @@ const UserMenu: React.FC = () => {
         open={open}
         onClose={handleClose}
         PaperProps={{
-          elevation: 3,
+          elevation: 8,
           sx: {
-            mt: 1,
-            minWidth: 200,
-            borderRadius: 2,
+            mt: 1.5,
+            minWidth: 220,
+            borderRadius: 3,
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(40, 40, 40, 0.95) 100%)'
+              : 'rgba(255, 255, 255, 0.98)',
+            backdropFilter: 'blur(10px)',
+            border: theme.palette.mode === 'dark'
+              ? '1px solid rgba(255,255,255,0.1)'
+              : '1px solid rgba(0,0,0,0.08)',
+            boxShadow: theme.palette.mode === 'dark'
+              ? '0 8px 32px rgba(0,0,0,0.4)'
+              : '0 8px 32px rgba(0,0,0,0.15)',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: 'linear-gradient(90deg, #6B4423 0%, #8B5A3C 50%, #C17D4A 100%)',
+            },
             '& .MuiMenuItem-root': {
-              px: 2,
-              py: 1,
+              px: 2.5,
+              py: 1.5,
+              borderRadius: 1,
+              mx: 1,
+              mb: 0.5,
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: theme.palette.mode === 'dark'
+                  ? 'rgba(107, 68, 35, 0.2)'
+                  : 'rgba(107, 68, 35, 0.08)',
+                transform: 'translateX(4px)',
+              },
+              '&:last-of-type': {
+                mb: 0,
+              },
             },
           },
         }}
@@ -170,15 +239,6 @@ const UserMenu: React.FC = () => {
           <ListItemText>Profile</ListItemText>
         </MenuItem>
         
-        <MenuItem onClick={handleNotifications}>
-          <ListItemIcon>
-            <Badge badgeContent={5} color="error">
-              <Notifications fontSize="small" />
-            </Badge>
-          </ListItemIcon>
-          <ListItemText>Notifications</ListItemText>
-        </MenuItem>
-        
         <MenuItem onClick={handleSettings}>
           <ListItemIcon>
             <Settings fontSize="small" />
@@ -188,11 +248,21 @@ const UserMenu: React.FC = () => {
         
         <Divider />
         
-        <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
+        <MenuItem 
+          onClick={handleLogout} 
+          sx={{ 
+            color: 'error.main',
+            '&:hover': {
+              backgroundColor: theme.palette.mode === 'dark'
+                ? 'rgba(244, 67, 54, 0.15)'
+                : 'rgba(244, 67, 54, 0.08)',
+            },
+          }}
+        >
           <ListItemIcon>
             <Logout fontSize="small" sx={{ color: 'error.main' }} />
           </ListItemIcon>
-          <ListItemText>Logout</ListItemText>
+          <ListItemText sx={{ '& .MuiListItemText-primary': { fontWeight: 600 } }}>Logout</ListItemText>
         </MenuItem>
       </Menu>
 
@@ -281,19 +351,6 @@ const UserMenu: React.FC = () => {
         <DialogActions>
           <Button onClick={() => setProfileOpen(false)}>Close</Button>
         </DialogActions>
-      </Dialog>
-
-      {/* Notifications Dialog */}
-      <Dialog 
-        open={notificationsOpen} 
-        onClose={() => setNotificationsOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: { maxHeight: '80vh' }
-        }}
-      >
-        <NotificationCenter standalone={true} onClose={() => setNotificationsOpen(false)} />
       </Dialog>
     </Box>
   );

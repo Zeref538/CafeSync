@@ -8,7 +8,11 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
-  User as FirebaseUser 
+  User as FirebaseUser,
+  linkWithCredential,
+  EmailAuthProvider,
+  fetchSignInMethodsForEmail,
+  updatePassword,
 } from 'firebase/auth';
 import { auth } from '../firebase';
 import { 
@@ -64,16 +68,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Fallback function to check employee whitelist (Firestore first, then localStorage)
   const checkEmployeeWhitelist = async (email: string): Promise<boolean> => {
     try {
+      // Normalize email to lowercase for consistent lookup
+      const normalizedEmail = email.toLowerCase();
+      console.log('🔍 Checking whitelist for:', normalizedEmail);
+      
       // Try Firestore first
-      const isWhitelisted = await isEmployeeWhitelisted(email);
-      console.log('🔍 Firestore whitelist check for', email, ':', isWhitelisted);
-      return isWhitelisted;
+      const isWhitelisted = await isEmployeeWhitelisted(normalizedEmail);
+      console.log('🔍 Firestore whitelist check for', normalizedEmail, ':', isWhitelisted);
+      
+      if (isWhitelisted) {
+        return true;
+      }
+      
+      // Fallback to localStorage
+      console.warn('⚠️ Firestore whitelist check failed, trying localStorage');
+      const isWhitelistedLegacy = isEmployeeWhitelistedLegacy(normalizedEmail);
+      console.log('🔍 localStorage whitelist check for', normalizedEmail, ':', isWhitelistedLegacy);
+      
+      return isWhitelistedLegacy;
     } catch (error) {
-      console.warn('⚠️ Firestore whitelist check failed, trying localStorage:', error);
+      console.error('❌ Error checking employee whitelist:', error);
+      // Try localStorage as last resort
       try {
-        // Fallback to localStorage
-        const isWhitelistedLegacy = isEmployeeWhitelistedLegacy(email);
-        console.log('🔍 localStorage whitelist check for', email, ':', isWhitelistedLegacy);
+        const isWhitelistedLegacy = isEmployeeWhitelistedLegacy(email.toLowerCase());
         return isWhitelistedLegacy;
       } catch (legacyError) {
         console.error('❌ Both Firestore and localStorage whitelist checks failed:', legacyError);
@@ -85,16 +102,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Fallback function to get employee data (Firestore first, then localStorage)
   const getEmployeeData = async (email: string): Promise<any> => {
     try {
+      // Normalize email to lowercase for consistent lookup
+      const normalizedEmail = email.toLowerCase();
+      console.log('🔍 Getting employee data for:', normalizedEmail);
+      
       // Try Firestore first
-      const employeeData = await getEmployeeByEmail(email);
-      console.log('🔍 Firestore employee data for', email, ':', employeeData);
-      return employeeData;
+      const employeeData = await getEmployeeByEmail(normalizedEmail);
+      console.log('🔍 Firestore employee data for', normalizedEmail, ':', employeeData);
+      
+      if (employeeData) {
+        return employeeData;
+      }
+      
+      // Fallback to localStorage
+      console.warn('⚠️ Firestore employee not found, trying localStorage');
+      const employeeDataLegacy = getEmployeeByEmailLegacy(normalizedEmail);
+      console.log('🔍 localStorage employee data for', normalizedEmail, ':', employeeDataLegacy);
+      
+      if (employeeDataLegacy) {
+        return employeeDataLegacy;
+      }
+      
+      console.error('❌ Employee not found in Firestore or localStorage:', normalizedEmail);
+      return null;
     } catch (error) {
-      console.warn('⚠️ Firestore employee data fetch failed, trying localStorage:', error);
+      console.error('❌ Error getting employee data:', error);
+      // Try localStorage as last resort
       try {
-        // Fallback to localStorage
-        const employeeDataLegacy = getEmployeeByEmailLegacy(email);
-        console.log('🔍 localStorage employee data for', email, ':', employeeDataLegacy);
+        const employeeDataLegacy = getEmployeeByEmailLegacy(email.toLowerCase());
         return employeeDataLegacy;
       } catch (legacyError) {
         console.error('❌ Both Firestore and localStorage employee data fetches failed:', legacyError);
@@ -112,9 +147,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       try {
         if (firebaseUser && firebaseUser.email) {
+          console.log('🔍 Auth state changed - Firebase user found:', firebaseUser.email);
+          
+          // Normalize email to lowercase
+          const normalizedEmail = firebaseUser.email.toLowerCase();
+          
           // Check if user is whitelisted employee (with fallback)
-          const isWhitelisted = await checkEmployeeWhitelist(firebaseUser.email);
+          console.log('🔍 Checking whitelist for auth state change:', normalizedEmail);
+          const isWhitelisted = await checkEmployeeWhitelist(normalizedEmail);
+          console.log('🔍 Whitelist check result:', isWhitelisted);
+          
           if (!isWhitelisted) {
+            console.error('❌ User not whitelisted during auth state change:', normalizedEmail);
             toast.error('Access denied. You are not an authorized employee.');
             await signOut(auth);
             setUser(null);
@@ -123,21 +167,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
           
           // Get employee data (with fallback)
-          const employeeData = await getEmployeeData(firebaseUser.email);
-          if (employeeData) {
-            const userData: User = {
-              id: firebaseUser.uid,
-              name: employeeData.name || firebaseUser.displayName || 'Employee',
-              email: firebaseUser.email,
-              role: employeeData.role,
-              station: employeeData.station,
-              permissions: employeeData.permissions,
-            };
-            
-            setUser(userData);
-            localStorage.setItem('cafesync_user', JSON.stringify(userData));
+          console.log('🔍 Getting employee data for auth state change:', normalizedEmail);
+          const employeeData = await getEmployeeData(normalizedEmail);
+          console.log('🔍 Employee data result:', employeeData);
+          
+          if (!employeeData) {
+            console.error('❌ Employee data not found during auth state change:', normalizedEmail);
+            toast.error('Employee record not found. Please contact your manager.');
+            await signOut(auth);
+            setUser(null);
+            setIsLoading(false);
+            return;
           }
+          
+          // Verify employee status
+          if (employeeData.status !== 'active') {
+            console.error('❌ Employee status is not active:', employeeData.status);
+            toast.error(`Your account is ${employeeData.status}. Please contact your manager.`);
+            await signOut(auth);
+            setUser(null);
+            setIsLoading(false);
+            return;
+          }
+          
+          const userData: User = {
+            id: firebaseUser.uid,
+            name: employeeData.name || firebaseUser.displayName || 'Employee',
+            email: firebaseUser.email,
+            role: employeeData.role,
+            station: employeeData.station,
+            permissions: employeeData.permissions,
+          };
+          
+          console.log('✅ Setting user data:', userData);
+          setUser(userData);
+          localStorage.setItem('cafesync_user', JSON.stringify(userData));
         } else {
+          console.log('🔍 No Firebase user, checking for legacy session');
           // No Firebase user, check for legacy session
           const token = localStorage.getItem('cafesync_token');
           if (token) {
@@ -150,7 +216,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        console.error('❌ Auth check failed:', error);
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -171,60 +237,132 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
       }
       
-      // Use Firebase Auth for email/password authentication
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      const firebaseUser = result.user;
-      
-      if (!firebaseUser || !firebaseUser.email) {
-        toast.error('Login failed. Please try again.');
-        return false;
-      }
-      
-      // Get employee data (with fallback)
-      const employeeData = await getEmployeeData(firebaseUser.email);
+      // Get employee data first to check if they exist in Firestore
+      const employeeData = await getEmployeeData(email);
       if (!employeeData) {
         toast.error('Employee record not found.');
-        await signOut(auth);
         return false;
       }
       
-      const userData: User = {
-        id: firebaseUser.uid,
-        name: employeeData.name || firebaseUser.displayName || 'Employee',
-        email: firebaseUser.email,
-        role: employeeData.role,
-        station: employeeData.station,
-        permissions: employeeData.permissions,
-      };
-      
-      setUser(userData);
-      localStorage.setItem('cafesync_user', JSON.stringify(userData));
-      
-      toast.success(`Welcome back, ${userData.name}!`);
-      
-      // Redirect based on role/station
-      if (userData.station) {
-        navigate(`/station/${userData.station}`);
-      } else {
-        navigate('/dashboard');
+      // Check if account exists and what sign-in methods are available
+      try {
+        const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+        console.log('🔍 Available sign-in methods for', email, ':', signInMethods);
+        
+        // Try to sign in with email/password
+      try {
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        const firebaseUser = result.user;
+        
+        if (!firebaseUser || !firebaseUser.email) {
+          toast.error('Login failed. Please try again.');
+          return false;
+        }
+        
+        const userData: User = {
+          id: firebaseUser.uid,
+          name: employeeData.name || firebaseUser.displayName || 'Employee',
+          email: firebaseUser.email,
+          role: employeeData.role,
+          station: employeeData.station,
+          permissions: employeeData.permissions,
+        };
+        
+        setUser(userData);
+        localStorage.setItem('cafesync_user', JSON.stringify(userData));
+        
+        toast.success(`Welcome back, ${userData.name}!`);
+        
+        // Redirect based on role/station
+        if (userData.station) {
+          navigate(`/station/${userData.station}`);
+        } else {
+          navigate('/dashboard');
+        }
+        
+        return true;
+      } catch (authError: any) {
+          // If account exists but only has Google sign-in, try to link email/password
+        if (authError.code === 'auth/user-not-found') {
+            // Account doesn't exist at all
+          toast.error('Account not found. Please use Sign Up to create your account first.');
+          navigate('/signup');
+          return false;
+        } else if (authError.code === 'auth/wrong-password') {
+            // Check if account only has Google sign-in
+            if (signInMethods.includes('google.com') && !signInMethods.includes('password')) {
+              toast.error(
+                'This account was created with Google sign-in. Please sign in with Google first, then you can set a password in your account settings.',
+                { duration: 6000 }
+              );
+              return false;
+            } else {
+          toast.error('Incorrect password. Please try again.');
+          return false;
+            }
+        } else if (authError.code === 'auth/invalid-email') {
+          toast.error('Invalid email address.');
+          return false;
+        } else if (authError.code === 'auth/too-many-requests') {
+          toast.error('Too many failed attempts. Please try again later.');
+          return false;
+          } else if (authError.code === 'auth/operation-not-allowed') {
+            toast.error('Email/password authentication is not enabled for this account. Please sign in with Google.');
+            return false;
+          } else {
+            throw authError;
+          }
+        }
+      } catch (checkError: any) {
+        // If fetchSignInMethodsForEmail fails, try regular sign-in anyway
+        console.error('Error checking sign-in methods:', checkError);
+        try {
+          const result = await signInWithEmailAndPassword(auth, email, password);
+          const firebaseUser = result.user;
+          
+          if (!firebaseUser || !firebaseUser.email) {
+            toast.error('Login failed. Please try again.');
+            return false;
+          }
+          
+          const userData: User = {
+            id: firebaseUser.uid,
+            name: employeeData.name || firebaseUser.displayName || 'Employee',
+            email: firebaseUser.email,
+            role: employeeData.role,
+            station: employeeData.station,
+            permissions: employeeData.permissions,
+          };
+          
+          setUser(userData);
+          localStorage.setItem('cafesync_user', JSON.stringify(userData));
+          
+          toast.success(`Welcome back, ${userData.name}!`);
+          
+          // Redirect based on role/station
+          if (userData.station) {
+            navigate(`/station/${userData.station}`);
+          } else {
+            navigate('/dashboard');
+          }
+          
+          return true;
+        } catch (authError: any) {
+          if (authError.code === 'auth/user-not-found') {
+            toast.error('Account not found. Please use Sign Up to create your account first.');
+            navigate('/signup');
+            return false;
+          } else if (authError.code === 'auth/wrong-password') {
+            toast.error('Incorrect password. Please try again.');
+            return false;
+        } else {
+          throw authError;
+          }
+        }
       }
-      
-      return true;
     } catch (error: any) {
       console.error('Login failed:', error);
-      
-      if (error.code === 'auth/user-not-found') {
-        toast.error('No account found with this email address.');
-      } else if (error.code === 'auth/wrong-password') {
-        toast.error('Incorrect password. Please try again.');
-      } else if (error.code === 'auth/invalid-email') {
-        toast.error('Invalid email address.');
-      } else if (error.code === 'auth/too-many-requests') {
-        toast.error('Too many failed attempts. Please try again later.');
-      } else {
-        toast.error('Login failed. Please try again.');
-      }
-      
+      toast.error('Login failed. Please try again.');
       return false;
     } finally {
       setIsLoading(false);
@@ -242,26 +380,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
       }
       
-      // Use Firebase Auth to create account
-      const result = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const firebaseUser = result.user;
+      // Get employee data from Firestore first
+      const employeeData = await getEmployeeData(data.email);
+      if (!employeeData) {
+        toast.error('Employee record not found in system. Please contact your manager.');
+        return false;
+      }
+      
+      // Use Firebase Auth to create account (or sign in if already exists)
+      let firebaseUser;
+      try {
+        const result = await createUserWithEmailAndPassword(auth, data.email, data.password);
+        firebaseUser = result.user;
+        console.log('Firebase Auth account created successfully');
+      } catch (authError: any) {
+        // If account already exists, try to sign in instead
+        if (authError.code === 'auth/email-already-in-use') {
+          toast.success('Account already exists. Signing you in...');
+          try {
+            const signInResult = await signInWithEmailAndPassword(auth, data.email, data.password);
+            firebaseUser = signInResult.user;
+            console.log('Signed in with existing Firebase Auth account');
+          } catch (signInError: any) {
+            if (signInError.code === 'auth/wrong-password') {
+              toast.error('An account already exists with this email. Please use the correct password or contact your manager.');
+            } else {
+              toast.error('Account exists but sign in failed. Please try again.');
+            }
+            return false;
+          }
+        } else {
+          throw authError;
+        }
+      }
       
       if (!firebaseUser || !firebaseUser.email) {
         toast.error('Account creation failed. Please try again.');
         return false;
       }
       
-      // Get employee data (with fallback)
-      const employeeData = await getEmployeeData(firebaseUser.email);
-      if (!employeeData) {
-        toast.error('Employee record not found.');
-        await signOut(auth);
-        return false;
-      }
-      
       const userData: User = {
         id: firebaseUser.uid,
-        name: employeeData.name || data.name || 'Employee',
+        name: employeeData.name || data.name || firebaseUser.displayName || 'Employee',
         email: firebaseUser.email,
         role: employeeData.role,
         station: employeeData.station,
@@ -284,14 +444,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       console.error('Signup failed:', error);
       
-      if (error.code === 'auth/email-already-in-use') {
-        toast.error('An account with this email already exists.');
-      } else if (error.code === 'auth/invalid-email') {
+      if (error.code === 'auth/invalid-email') {
         toast.error('Invalid email address.');
       } else if (error.code === 'auth/weak-password') {
         toast.error('Password should be at least 6 characters.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        toast.error('Email/password authentication is not enabled. Please contact the administrator.');
       } else {
-        toast.error('Registration failed. Please try again.');
+        toast.error('Signup failed. Please try again.');
       }
       
       return false;
@@ -360,21 +520,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
       }
       
+      console.log('🔍 Google sign-in successful for:', firebaseUser.email);
+      console.log('🔍 Firebase Auth UID:', firebaseUser.uid);
+      
+      // Normalize email to lowercase for consistent lookup
+      const normalizedEmail = firebaseUser.email.toLowerCase();
+      
       // Check if user is whitelisted employee (with fallback)
-      const isWhitelisted = await checkEmployeeWhitelist(firebaseUser.email);
+      console.log('🔍 Checking whitelist for:', normalizedEmail);
+      const isWhitelisted = await checkEmployeeWhitelist(normalizedEmail);
+      console.log('🔍 Whitelist check result:', isWhitelisted);
+      
       if (!isWhitelisted) {
+        console.error('❌ User not whitelisted:', normalizedEmail);
         toast.error('Access denied. You are not an authorized employee. Please contact your manager.');
         await signOut(auth);
         return false;
       }
       
       // Get employee data (with fallback)
-      const employeeData = await getEmployeeData(firebaseUser.email);
+      console.log('🔍 Getting employee data for:', normalizedEmail);
+      const employeeData = await getEmployeeData(normalizedEmail);
+      console.log('🔍 Employee data result:', employeeData);
+      
       if (!employeeData) {
-        toast.error('Employee record not found.');
+        console.error('❌ Employee data not found for:', normalizedEmail);
+        toast.error('Employee record not found. Please contact your manager.');
         await signOut(auth);
         return false;
       }
+      
+      // Verify employee status
+      if (employeeData.status !== 'active') {
+        console.error('❌ Employee status is not active:', employeeData.status);
+        toast.error(`Your account is ${employeeData.status}. Please contact your manager.`);
+        await signOut(auth);
+        return false;
+      }
+      
+      // Check if email/password auth is already linked, if not, try to link it
+      // This allows users to sign in with email/password if manager created account with password
+      const signInMethods = await fetchSignInMethodsForEmail(auth, normalizedEmail);
+      console.log('🔍 Sign-in methods after Google sign-in:', signInMethods);
+      
+      // If email/password is not linked but account exists, we'll handle it in the login function
+      // For now, just proceed with normal Google sign-in
       
       const userData: User = {
         id: firebaseUser.uid,

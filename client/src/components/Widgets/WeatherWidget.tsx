@@ -63,7 +63,17 @@ const WeatherWidget: React.FC = () => {
       }
       
       const data = await response.json();
-      setWeatherData(data);
+      
+      // Handle different response formats
+      if (data.data) {
+        // Response wrapped in { success: true, data: {...} }
+        setWeatherData(data.data);
+        setError(null); // Clear any previous errors
+      } else {
+        // Direct weather data object
+        setWeatherData(data);
+        setError(null); // Clear any previous errors
+      }
     } catch (err) {
       console.error('Error fetching weather:', err);
       setError('Unable to fetch weather data. Using demo data.');
@@ -73,12 +83,14 @@ const WeatherWidget: React.FC = () => {
         condition: 'partly_cloudy',
         humidity: 75,
         description: 'Partly cloudy',
+        windSpeed: 8.5,
         location: {
           name: 'Bean and Beyond, Caloocan City',
           address: '14 Kumintang Street, Caloocan City, Philippines',
           lat: 14.6542,
           lon: 120.9823,
         },
+        timestamp: new Date().toISOString(),
       });
     } finally {
       setLoading(false);

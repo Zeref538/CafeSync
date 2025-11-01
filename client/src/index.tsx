@@ -10,6 +10,8 @@ import App from './App';
 import { SocketProvider } from './contexts/SocketContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider as CustomThemeProvider, useTheme as useCustomTheme } from './contexts/ThemeContext';
+import { NotificationHistoryProvider, useNotificationHistory } from './contexts/NotificationHistoryContext';
+import { setNotificationHistoryHandler } from './utils/notifications';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -120,14 +122,31 @@ const createAppTheme = (isDarkMode: boolean) => createTheme({
           borderRadius: 12,
           padding: '12px 24px',
           fontSize: '1rem',
-          fontWeight: 500,
+          fontWeight: 600,
           minHeight: 48,
           touchAction: 'manipulation',
+          textTransform: 'none',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         },
         contained: {
-          boxShadow: '0 4px 12px rgba(139, 69, 19, 0.3)',
+          boxShadow: isDarkMode 
+            ? '0 4px 16px rgba(107, 68, 35, 0.4)' 
+            : '0 4px 12px rgba(107, 68, 35, 0.3)',
           '&:hover': {
-            boxShadow: '0 6px 16px rgba(139, 69, 19, 0.4)',
+            boxShadow: isDarkMode
+              ? '0 8px 24px rgba(107, 68, 35, 0.5)'
+              : '0 6px 20px rgba(107, 68, 35, 0.4)',
+            transform: 'translateY(-2px)',
+          },
+          '&:active': {
+            transform: 'translateY(0px)',
+          },
+        },
+        outlined: {
+          borderWidth: 2,
+          '&:hover': {
+            borderWidth: 2,
+            transform: 'translateY(-1px)',
           },
         },
       },
@@ -135,16 +154,40 @@ const createAppTheme = (isDarkMode: boolean) => createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 16,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-          border: '1px solid rgba(0, 0, 0, 0.05)',
+          borderRadius: 20,
+          boxShadow: isDarkMode
+            ? '0 4px 20px rgba(0, 0, 0, 0.3), 0 0 1px rgba(255, 255, 255, 0.1)'
+            : '0 4px 16px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.05)',
+          border: isDarkMode
+            ? '1px solid rgba(255, 255, 255, 0.08)'
+            : '1px solid rgba(0, 0, 0, 0.06)',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflow: 'hidden',
+          position: 'relative',
+          '&:hover': {
+            boxShadow: isDarkMode
+              ? '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 1px rgba(255, 255, 255, 0.15)'
+              : '0 8px 24px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.08)',
+            transform: 'translateY(-4px)',
+          },
         },
       },
     },
     MuiPaper: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          borderRadius: 16,
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        },
+        elevation1: {
+          boxShadow: isDarkMode
+            ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+            : '0 2px 8px rgba(0, 0, 0, 0.1)',
+        },
+        elevation2: {
+          boxShadow: isDarkMode
+            ? '0 4px 16px rgba(0, 0, 0, 0.25)'
+            : '0 4px 16px rgba(0, 0, 0, 0.12)',
         },
       },
     },
@@ -154,6 +197,20 @@ const createAppTheme = (isDarkMode: boolean) => createTheme({
           '& .MuiOutlinedInput-root': {
             borderRadius: 12,
             minHeight: 48,
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:hover': {
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderWidth: 2,
+              },
+            },
+            '&.Mui-focused': {
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderWidth: 2,
+                boxShadow: isDarkMode
+                  ? '0 0 0 4px rgba(160, 82, 45, 0.2)'
+                  : '0 0 0 4px rgba(107, 68, 35, 0.15)',
+              },
+            },
           },
         },
       },
@@ -161,8 +218,13 @@ const createAppTheme = (isDarkMode: boolean) => createTheme({
     MuiChip: {
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: 10,
           minHeight: 32,
+          fontWeight: 500,
+          transition: 'all 0.2s ease',
+          '&:hover': {
+            transform: 'scale(1.05)',
+          },
         },
       },
     },
@@ -172,6 +234,43 @@ const createAppTheme = (isDarkMode: boolean) => createTheme({
           minWidth: 48,
           minHeight: 48,
           touchAction: 'manipulation',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            transform: 'scale(1.1)',
+            backgroundColor: isDarkMode
+              ? 'rgba(255, 255, 255, 0.1)'
+              : 'rgba(107, 68, 35, 0.08)',
+          },
+        },
+      },
+    },
+    MuiLinearProgress: {
+      styleOverrides: {
+        root: {
+          borderRadius: 10,
+          height: 10,
+        },
+      },
+    },
+    MuiTabs: {
+      styleOverrides: {
+        root: {
+          '& .MuiTab-root': {
+            textTransform: 'none',
+            fontWeight: 500,
+            minHeight: 48,
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              color: isDarkMode ? '#C87941' : '#6B4423',
+            },
+          },
+          '& .Mui-selected': {
+            fontWeight: 600,
+          },
+        },
+        indicator: {
+          height: 3,
+          borderRadius: '3px 3px 0 0',
         },
       },
     },
@@ -187,6 +286,17 @@ const createAppTheme = (isDarkMode: boolean) => createTheme({
   },
 });
 
+// Notification history handler component
+const NotificationHistoryHandler: React.FC = () => {
+  const { addNotification } = useNotificationHistory();
+  
+  React.useEffect(() => {
+    setNotificationHistoryHandler(addNotification);
+  }, [addNotification]);
+  
+  return null;
+};
+
 // Theme wrapper component
 const ThemeWrapper: React.FC = () => {
   const { isDarkMode } = useCustomTheme();
@@ -197,9 +307,11 @@ const ThemeWrapper: React.FC = () => {
       <CssBaseline />
       <BrowserRouter>
         <AuthProvider>
-          <SocketProvider>
-            <App />
-            <Toaster
+          <NotificationHistoryProvider>
+            <NotificationHistoryHandler />
+            <SocketProvider>
+              <App />
+              <Toaster
               position="top-right"
               toastOptions={{
                 duration: 4000,
@@ -224,7 +336,8 @@ const ThemeWrapper: React.FC = () => {
                 },
               }}
             />
-          </SocketProvider>
+            </SocketProvider>
+          </NotificationHistoryProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>

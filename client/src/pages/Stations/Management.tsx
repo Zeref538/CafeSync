@@ -1,74 +1,51 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Grid,
-  List,
-  ListItem,
-  ListItemText,
-  Avatar,
-  Chip,
-  LinearProgress,
-  Divider,
-  Alert,
-  Tabs,
-  Tab,
-} from '@mui/material';
-import {
-  TrendingUp,
-  People,
-  Inventory,
-  Warning,
-  CheckCircle,
-  Restaurant,
-  Add,
-  LocalOffer,
-} from '@mui/icons-material';
+import { Box, Typography, Card, CardContent, Grid, Tabs, Tab, Button, useTheme } from '@mui/material';
+import { TrendingUp, Restaurant, Add, LocalOffer, Assessment } from '@mui/icons-material';
 import SalesChart from '../../components/Charts/SalesChart';
 import WeatherWidget from '../../components/Widgets/WeatherWidget';
 import MenuManagement from '../../components/Management/MenuManagement';
 import AddOnsManagement from '../../components/Management/AddOnsManagement';
 import DiscountManagement from '../../components/Management/DiscountManagement';
+import StaffPerformancePage from '../../pages/StaffPerformance/StaffPerformance';
 import { API_ENDPOINTS } from '../../config/api';
 
 const Management: React.FC = () => {
+  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
+  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [managementData, setManagementData] = useState({
-    todayStats: {
-      sales: 0,
-      orders: 0,
-      averageDeliveryTime: 0,
-      averageOrderValue: 0,
-    },
+    stats: { sales: 0, orders: 0, averageDeliveryTime: 0, averageOrderValue: 0 },
     staffPerformance: [],
     alerts: [],
     inventoryAlerts: [],
+    loading: false,
   });
 
-  // Fetch real management data
   useEffect(() => {
     const fetchManagementData = async () => {
       try {
-        // Fetch dashboard data
-        const dashboardResponse = await fetch(API_ENDPOINTS.ANALYTICS_DASHBOARD);
-        if (dashboardResponse.ok) {
-          const dashboardData = await dashboardResponse.json();
+        setManagementData(prev => ({ ...prev, loading: true }));
+        
+        // Fetch sales data for the selected period
+        const salesResponse = await fetch(`${API_ENDPOINTS.ANALYTICS_SALES(selectedPeriod)}&_t=${Date.now()}`);
+        if (salesResponse.ok) {
+          const salesData = await salesResponse.json();
+          if (salesData.success) {
+            const data = salesData.data;
           setManagementData(prev => ({
             ...prev,
-            todayStats: {
-              sales: dashboardData.todaySales,
-              orders: dashboardData.todayOrders,
-              averageDeliveryTime: dashboardData.averageDeliveryTime || 0,
-              averageOrderValue: dashboardData.todayOrders > 0 ? 
-                dashboardData.todaySales / dashboardData.todayOrders : 0,
+              stats: {
+                sales: data.totalSales || 0,
+                orders: data.totalOrders || 0,
+                averageDeliveryTime: data.averageOrderTime || 0,
+                averageOrderValue: data.averageOrderValue || 0,
             },
           }));
+          }
         }
-
-        // Fetch staff performance data
-        const staffResponse = await fetch(API_ENDPOINTS.ANALYTICS_STAFF);
+        
+        // Fetch staff performance data for the selected period
+        const staffResponse = await fetch(`${API_ENDPOINTS.ANALYTICS_STAFF}?period=${selectedPeriod}&_t=${Date.now()}`);
         if (staffResponse.ok) {
           const staffData = await staffResponse.json();
           setManagementData(prev => ({
@@ -76,377 +53,294 @@ const Management: React.FC = () => {
             staffPerformance: staffData.data?.staffPerformance || [],
           }));
         }
-
-        // For now, keep alerts and inventory alerts empty
-        // These will be populated by real data in the future
-        setManagementData(prev => ({
-          ...prev,
-          alerts: [],
-          inventoryAlerts: [],
-        }));
       } catch (error) {
         console.error('Error fetching management data:', error);
-        // Keep data at default values (0/empty)
+      } finally {
+        setManagementData(prev => ({ ...prev, loading: false }));
       }
     };
-
     fetchManagementData();
-  }, []);
+  }, [selectedPeriod]);
 
-  const getAlertColor = (type: string) => {
-    const colors: Record<string, string> = {
-      warning: '#ff9800',
-      info: '#2196f3',
-      success: '#4caf50',
-      error: '#f44336',
-    };
-    return colors[type] || '#666';
+  const getPeriodLabel = () => {
+    switch (selectedPeriod) {
+      case 'today': return "Today";
+      case 'week': return "This Week";
+      case 'month': return "This Month";
+      default: return "Today";
+    }
   };
 
-  const getAlertIcon = (type: string) => {
-    const icons: Record<string, React.ReactNode> = {
-      warning: <Warning />,
-      info: <TrendingUp />,
-      success: <CheckCircle />,
-      error: <Warning />,
-    };
-    return icons[type] || <TrendingUp />;
+  const getSalesLabel = () => {
+    switch (selectedPeriod) {
+      case 'today': return "Today's Sales";
+      case 'week': return "Week's Sales";
+      case 'month': return "Month's Sales";
+      default: return "Today's Sales";
+    }
   };
 
-  const getPriorityColor = (priority: string) => {
-    const colors: Record<string, string> = {
-      high: '#f44336',
-      medium: '#ff9800',
-      low: '#4caf50',
-    };
-    return colors[priority] || '#666';
-  };
-
-  const getStockStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      critical: '#f44336',
-      warning: '#ff9800',
-      good: '#4caf50',
-    };
-    return colors[status] || '#666';
+  const getOrdersLabel = () => {
+    switch (selectedPeriod) {
+      case 'today': return "Orders Today";
+      case 'week': return "Orders This Week";
+      case 'month': return "Orders This Month";
+      default: return "Orders Today";
+    }
   };
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
+      <Box sx={{ mb: 4 }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700, 
+            mb: 2,
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, #fff 0%, #e0e0e0 100%)'
+              : 'linear-gradient(135deg, #6B4423 0%, #8B5A3C 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
         Management Dashboard
       </Typography>
+        
+        {activeTab === 0 && (
+          <Box sx={{
+            display: 'flex',
+            gap: 0.5,
+            backgroundColor: theme.palette.mode === 'dark'
+              ? 'rgba(255,255,255,0.08)'
+              : 'rgba(107, 68, 35, 0.05)',
+            borderRadius: 3,
+            p: 0.5,
+            border: theme.palette.mode === 'dark'
+              ? '1px solid rgba(255,255,255,0.1)'
+              : '1px solid rgba(107, 68, 35, 0.1)',
+            width: 'fit-content',
+            mb: 2,
+          }}>
+            <Button
+              variant={selectedPeriod === 'today' ? 'contained' : 'text'}
+              onClick={() => setSelectedPeriod('today')}
+              sx={{
+                textTransform: 'none',
+                minWidth: 90,
+                fontWeight: selectedPeriod === 'today' ? 600 : 500,
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(255,255,255,0.12)'
+                    : 'rgba(107, 68, 35, 0.1)',
+                },
+              }}
+              size="small"
+            >
+              Today
+            </Button>
+            <Button
+              variant={selectedPeriod === 'week' ? 'contained' : 'text'}
+              onClick={() => setSelectedPeriod('week')}
+              sx={{
+                textTransform: 'none',
+                minWidth: 90,
+                fontWeight: selectedPeriod === 'week' ? 600 : 500,
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(255,255,255,0.12)'
+                    : 'rgba(107, 68, 35, 0.1)',
+                },
+              }}
+              size="small"
+            >
+              Week
+            </Button>
+            <Button
+              variant={selectedPeriod === 'month' ? 'contained' : 'text'}
+              onClick={() => setSelectedPeriod('month')}
+              sx={{
+                textTransform: 'none',
+                minWidth: 90,
+                fontWeight: selectedPeriod === 'month' ? 600 : 500,
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(255,255,255,0.12)'
+                    : 'rgba(107, 68, 35, 0.1)',
+                },
+              }}
+              size="small"
+            >
+              Month
+            </Button>
+          </Box>
+        )}
+      </Box>
 
-      {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-          <Tab 
-            label="Overview" 
-            icon={<TrendingUp />} 
-            iconPosition="start"
-            sx={{ textTransform: 'none' }}
-          />
-          <Tab 
-            label="Menu Management" 
-            icon={<Restaurant />} 
-            iconPosition="start"
-            sx={{ textTransform: 'none' }}
-          />
-          <Tab 
-            label="Add-Ons Management" 
-            icon={<Add />} 
-            iconPosition="start"
-            sx={{ textTransform: 'none' }}
-          />
-          <Tab 
-            label="Discount Codes" 
-            icon={<LocalOffer />} 
-            iconPosition="start"
-            sx={{ textTransform: 'none' }}
-          />
+          <Tab label="Overview" icon={<TrendingUp />} iconPosition="start" sx={{ textTransform: 'none' }} />
+          <Tab label="Menu Management" icon={<Restaurant />} iconPosition="start" sx={{ textTransform: 'none' }} />
+          <Tab label="Add-Ons Management" icon={<Add />} iconPosition="start" sx={{ textTransform: 'none' }} />
+          <Tab label="Discount Codes" icon={<LocalOffer />} iconPosition="start" sx={{ textTransform: 'none' }} />
+          <Tab label="Staff Performance" icon={<Assessment />} iconPosition="start" sx={{ textTransform: 'none' }} />
         </Tabs>
       </Box>
 
-      {/* Tab Content */}
       {activeTab === 0 && (
         <>
-          {/* Key Metrics */}
           <Grid container spacing={3} sx={{ mb: 4 }}>
             <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#4caf50' }}>
-                    ₱{managementData.todayStats.sales.toFixed(2)}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Today's Sales
-                  </Typography>
-                </CardContent>
-              </Card>
+              <Card><CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#4caf50' }}>
+                  ₱{managementData.stats.sales.toFixed(2)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">{getSalesLabel()}</Typography>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#2196f3' }}>
-                    {managementData.todayStats.orders}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Orders Today
-                  </Typography>
-                </CardContent>
-              </Card>
+              <Card><CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#2196f3' }}>
+                  {managementData.stats.orders}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">{getOrdersLabel()}</Typography>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#ff9800' }}>
-                    {managementData.todayStats.averageDeliveryTime}m
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Avg Delivery Time
-                  </Typography>
-                </CardContent>
-              </Card>
+              <Card><CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#ff9800' }}>
+                  ₱{managementData.stats.averageOrderValue.toFixed(2)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">Avg Order Value</Typography>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#9c27b0' }}>
-                    ₱{managementData.todayStats.averageOrderValue.toFixed(2)}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Avg Order Value
-                  </Typography>
-                </CardContent>
-              </Card>
+              <Card><CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#9c27b0' }}>
+                  {managementData.stats.averageDeliveryTime}m
+                </Typography>
+                <Typography variant="body2" color="text.secondary">Avg Delivery Time</Typography>
+              </CardContent></Card>
             </Grid>
           </Grid>
-
-          {/* Alerts */}
-          {managementData.alerts.length > 0 && (
-            <Alert severity="warning" sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                {managementData.alerts.length} alerts require attention
-              </Typography>
-            </Alert>
-          )}
-
           <Grid container spacing={3}>
-            {/* Sales Chart */}
             <Grid item xs={12} lg={8}>
-              <Card sx={{ height: 400 }}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                    Sales Overview
-                  </Typography>
-                  <SalesChart period="today" />
-                </CardContent>
-              </Card>
+              <Card sx={{ height: 400 }}><CardContent>
+                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>Sales Overview ({getPeriodLabel()})</Typography>
+                <SalesChart period={selectedPeriod} />
+              </CardContent></Card>
             </Grid>
+            <Grid item xs={12} lg={4}><WeatherWidget /></Grid>
+          </Grid>
 
-            {/* Weather Widget */}
-            <Grid item xs={12} lg={4}>
-              <WeatherWidget />
-            </Grid>
-
-            {/* Staff Performance */}
+          {/* Staff Performance Summary */}
+          <Grid container spacing={3} sx={{ mt: 2 }}>
             <Grid item xs={12} md={6}>
               <Card>
                 <CardContent>
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <People />
-                    Staff Performance
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Top 5 Staff by Sales ({getPeriodLabel()})
                   </Typography>
-                  
-                  {managementData.staffPerformance.length > 0 ? (
-                    <List sx={{ p: 0 }}>
-                      {managementData.staffPerformance.map((staff: any, index: number) => (
-                        <React.Fragment key={staff.staffId || index}>
-                          <ListItem sx={{ px: 0, py: 2 }}>
-                            <Avatar sx={{ mr: 2, backgroundColor: '#8B4513' }}>
-                              {staff.name ? staff.name.split(' ').map((n: string) => n[0]).join('') : 'S'}
-                            </Avatar>
-                            <ListItemText
-                              primary={
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                                    {staff.name || 'Staff Member'}
-                                  </Typography>
-                                  <Chip
-                                    label={staff.role || 'Staff'}
-                                    size="small"
-                                    sx={{ fontWeight: 500, textTransform: 'capitalize' }}
-                                  />
-                                </Box>
-                              }
-                              secondary={
-                                <Box>
-                                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                    {staff.ordersCompleted || 0} orders • {staff.averageOrderTime || 0}min avg • {staff.customerRating || 0}/5 rating
-                                  </Typography>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                      Efficiency: {((staff.efficiency || 0) * 100).toFixed(0)}%
-                                    </Typography>
-                                    <LinearProgress
-                                      variant="determinate"
-                                      value={(staff.efficiency || 0) * 100}
-                                      sx={{ flex: 1, height: 6, borderRadius: 3 }}
-                                    />
-                                  </Box>
-                                </Box>
-                              }
-                            />
-                            <Box sx={{ textAlign: 'right' }}>
-                              <Typography variant="h6" sx={{ fontWeight: 700, color: '#8B4513' }}>
-                                ₱{(staff.salesGenerated || 0).toFixed(2)}
+                  {managementData.loading ? (
+                    <Typography variant="body2" color="text.secondary">Loading...</Typography>
+                  ) : managementData.staffPerformance.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">No staff data available for {getPeriodLabel().toLowerCase()}</Typography>
+                  ) : (
+                    <Box>
+                      {managementData.staffPerformance
+                        .sort((a: any, b: any) => (b.totalSales || 0) - (a.totalSales || 0))
+                        .slice(0, 5)
+                        .map((staff: any, index: number) => (
+                          <Box
+                            key={staff.staffId || index}
+                            sx={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              py: 1.5,
+                              px: 2,
+                              mb: 1,
+                              borderRadius: 2,
+                              backgroundColor: theme.palette.mode === 'dark'
+                                ? 'rgba(255,255,255,0.05)'
+                                : 'rgba(107, 68, 35, 0.05)',
+                              border: theme.palette.mode === 'dark'
+                                ? '1px solid rgba(255,255,255,0.08)'
+                                : '1px solid rgba(107, 68, 35, 0.1)',
+                            }}
+                          >
+                            <Box>
+                              <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                {staff.staffName || 'Unknown Staff'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {staff.staffRole || 'staff'} • {staff.completedOrders || 0} orders
                               </Typography>
                             </Box>
-                          </ListItem>
-                          {index < managementData.staffPerformance.length - 1 && <Divider />}
-                        </React.Fragment>
-                      ))}
-                    </List>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        No staff performance data available
-                      </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 700, color: '#4caf50' }}>
+                              ₱{((staff.totalSales || 0).toFixed(2))}
+                            </Typography>
+                          </Box>
+                        ))}
                     </Box>
                   )}
                 </CardContent>
               </Card>
             </Grid>
-
-            {/* Inventory Alerts */}
             <Grid item xs={12} md={6}>
               <Card>
                 <CardContent>
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Inventory />
-                    Inventory Alerts
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                    Top 5 Staff by Orders ({getPeriodLabel()})
                   </Typography>
-                  
-                  {managementData.inventoryAlerts.length > 0 ? (
-                    <List sx={{ p: 0 }}>
-                      {managementData.inventoryAlerts.map((item: any, index: number) => (
-                        <React.Fragment key={item.item || index}>
-                          <ListItem sx={{ px: 0, py: 2 }}>
-                            <ListItemText
-                              primary={
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                                    {item.item}
-                                  </Typography>
-                                  <Chip
-                                    label={item.status}
-                                    size="small"
-                                    sx={{
-                                      backgroundColor: `${getStockStatusColor(item.status)}20`,
-                                      color: getStockStatusColor(item.status),
-                                      fontWeight: 500,
-                                      textTransform: 'capitalize',
-                                    }}
-                                  />
-                                </Box>
-                              }
-                              secondary={
-                                <Box>
-                                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                    Current: {item.currentStock} • Min: {item.minStock}
-                                  </Typography>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                      Stock Level
-                                    </Typography>
-                                    <LinearProgress
-                                      variant="determinate"
-                                      value={(item.currentStock / item.minStock) * 100}
-                                      color={item.status === 'critical' ? 'error' : item.status === 'warning' ? 'warning' : 'success'}
-                                      sx={{ flex: 1, height: 6, borderRadius: 3 }}
-                                    />
-                                  </Box>
-                                </Box>
-                              }
-                            />
-                          </ListItem>
-                          {index < managementData.inventoryAlerts.length - 1 && <Divider />}
-                        </React.Fragment>
-                      ))}
-                    </List>
+                  {managementData.loading ? (
+                    <Typography variant="body2" color="text.secondary">Loading...</Typography>
+                  ) : managementData.staffPerformance.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">No staff data available for {getPeriodLabel().toLowerCase()}</Typography>
                   ) : (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        No inventory alerts
-                      </Typography>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* System Alerts */}
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Warning />
-                    System Alerts
-                  </Typography>
-                  
-                  {managementData.alerts.length > 0 ? (
-                    <List sx={{ p: 0 }}>
-                      {managementData.alerts.map((alert: any, index: number) => (
-                        <React.Fragment key={index}>
-                          <ListItem sx={{ px: 0, py: 2 }}>
-                            <Box
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 2,
-                                p: 2,
-                                backgroundColor: `${getAlertColor(alert.type)}10`,
-                                borderRadius: 2,
-                                border: `1px solid ${getAlertColor(alert.type)}30`,
-                              }}
-                            >
-                              <Box sx={{ color: getAlertColor(alert.type) }}>
-                                {getAlertIcon(alert.type)}
-                              </Box>
-                              <Box sx={{ flex: 1 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                                    {alert.title}
-                                  </Typography>
-                                  <Chip
-                                    label={alert.priority}
-                                    size="small"
-                                    sx={{
-                                      backgroundColor: `${getPriorityColor(alert.priority)}20`,
-                                      color: getPriorityColor(alert.priority),
-                                      fontWeight: 500,
-                                      textTransform: 'capitalize',
-                                    }}
-                                  />
-                                </Box>
-                                <Typography variant="body2" color="text.secondary">
-                                  {alert.message}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {new Date(alert.timestamp).toLocaleString()}
-                                </Typography>
-                              </Box>
+                    <Box>
+                      {managementData.staffPerformance
+                        .sort((a: any, b: any) => (b.totalOrders || 0) - (a.totalOrders || 0))
+                        .slice(0, 5)
+                        .map((staff: any, index: number) => (
+                          <Box
+                            key={staff.staffId || index}
+                            sx={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              py: 1.5,
+                              px: 2,
+                              mb: 1,
+                              borderRadius: 2,
+                              backgroundColor: theme.palette.mode === 'dark'
+                                ? 'rgba(255,255,255,0.05)'
+                                : 'rgba(107, 68, 35, 0.05)',
+                              border: theme.palette.mode === 'dark'
+                                ? '1px solid rgba(255,255,255,0.08)'
+                                : '1px solid rgba(107, 68, 35, 0.1)',
+                            }}
+                          >
+                            <Box>
+                              <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                {staff.staffName || 'Unknown Staff'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {staff.staffRole || 'staff'} • ₱{((staff.totalSales || 0).toFixed(2))} sales
+                              </Typography>
                             </Box>
-                          </ListItem>
-                          {index < managementData.alerts.length - 1 && <Divider />}
-                        </React.Fragment>
-                      ))}
-                    </List>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        No system alerts
-                      </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 700, color: '#2196f3' }}>
+                              {staff.totalOrders || 0}
+                            </Typography>
+                          </Box>
+                        ))}
                     </Box>
                   )}
                 </CardContent>
@@ -456,19 +350,13 @@ const Management: React.FC = () => {
         </>
       )}
 
-      {activeTab === 1 && (
-        <MenuManagement />
-      )}
-
-      {activeTab === 2 && (
-        <AddOnsManagement />
-      )}
-
-      {activeTab === 3 && (
-        <DiscountManagement />
-      )}
+      {activeTab === 1 && <MenuManagement />}
+      {activeTab === 2 && <AddOnsManagement />}
+      {activeTab === 3 && <DiscountManagement />}
+      {activeTab === 4 && <StaffPerformancePage />}
     </Box>
   );
 };
 
 export default Management;
+

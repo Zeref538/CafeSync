@@ -43,6 +43,7 @@ import {
   CheckCircle,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { API_ENDPOINTS } from '../../config/api';
 import { useTheme } from '@mui/material/styles';
 
@@ -75,6 +76,7 @@ interface MenuManagementProps {
 
 const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
   const { emitMenuUpdate } = useSocket();
+  const { user } = useAuth();
   const theme = useTheme();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -145,14 +147,16 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
   useEffect(() => {
     const initializeData = async () => {
       await loadInventoryItems();
+      // Always load menu items, even if inventory is empty
       await loadMenuItems();
     };
     initializeData();
   }, []);
   
-  // Reload menu items when inventory changes to filter ingredients
+  // Reload menu items when inventory changes to filter ingredients (but don't block initial load)
   useEffect(() => {
-    if (inventoryItems.length > 0) {
+    if (inventoryItems.length > 0 && menuItems.length > 0) {
+      // Only reload to refilter if we already have menu items
       loadMenuItems();
     }
   }, [inventoryItems.length]);
@@ -163,17 +167,26 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
       
       // Always use Firebase Functions URL
       const apiUrl = 'https://us-central1-cafesync-3b25a.cloudfunctions.net/api/menu';
+      
+      console.log('Loading menu items from:', apiUrl);
         
-      const response = await fetch(apiUrl);
+      // Add cache-busting timestamp to ensure fresh data
+      const cacheBustUrl = `${apiUrl}?_t=${Date.now()}`;
+      const response = await fetch(cacheBustUrl);
+      console.log('Menu API response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
         console.log('Loaded menu items from API:', data);
+        console.log('Menu items count:', data.data?.length || 0);
         console.log('First menu item data:', data.data?.[0]);
         console.log('First menu item sizes:', data.data?.[0]?.sizes);
         console.log('Available ingredients from inventory:', availableIngredients);
         
         // Filter ingredients on frontend to ensure only valid inventory items are shown
         let items = data.data || [];
+        console.log('Menu items before filtering:', items.length);
+        
         if (availableIngredients.length > 0) {
           items = items.map((item: MenuItem) => {
             if (item.ingredients && Array.isArray(item.ingredients)) {
@@ -190,15 +203,20 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
           });
         }
         
+        console.log('Menu items after filtering:', items.length);
+        console.log('Setting menu items:', items);
         setMenuItems(items);
       } else {
         // No fallback - start with empty menu
+        const errorText = await response.text();
         console.error('Failed to load menu items, response status:', response.status);
+        console.error('Failed to load menu items, response text:', errorText);
         setMenuItems([]);
+        setSnackbar({ open: true, message: `Failed to load menu items: ${response.status} ${errorText}`, severity: 'error' });
       }
     } catch (error) {
       console.error('Error loading menu items:', error);
-      setSnackbar({ open: true, message: 'Failed to load menu items', severity: 'error' });
+      setSnackbar({ open: true, message: `Failed to load menu items: ${error instanceof Error ? error.message : 'Unknown error'}`, severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -332,6 +350,11 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
         itemData.id = editingItem.id.toString(); // Convert to string for Firestore
       }
 
+      // Add staff info for audit logging
+      itemData.staffId = user?.email || user?.id || 'unknown';
+      itemData.staffEmail = user?.email || '';
+      itemData.staffName = user?.name || 'Unknown';
+
       // Filter ingredients to only include items that exist in inventory
       if (itemData.ingredients && Array.isArray(itemData.ingredients)) {
         itemData.ingredients = itemData.ingredients.filter((ingredient: string) => 
@@ -403,7 +426,8 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
       
       // Always use Firebase Functions URL - ensure ID is converted to string
       const itemId = itemToDelete.id.toString();
-      const apiUrl = `https://us-central1-cafesync-3b25a.cloudfunctions.net/api/menu/${itemId}`;
+      const staffId = user?.email || user?.id || 'unknown';
+      const apiUrl = `https://us-central1-cafesync-3b25a.cloudfunctions.net/api/menu/${itemId}?staffId=${encodeURIComponent(staffId)}&staffEmail=${encodeURIComponent(user?.email || '')}`;
       
       console.log('Deleting menu item:', itemId, 'URL:', apiUrl);
       
@@ -412,8 +436,15 @@ const MenuManagement: React.FC<MenuManagementProps> = ({ onMenuUpdate }) => {
       });
 
       if (response.ok) {
-        // Reload menu items to get the latest data from server
+        // Parse response to verify deletion
+        const result = await response.json().catch(() => ({}));
+        console.log('Delete response:', result);
+        
+        // Reload menu items to get the latest data from server (with cache-busting)
         await loadMenuItems();
+        
+        // Also remove from local state immediately for better UX
+        setMenuItems(prev => prev.filter(item => item.id.toString() !== itemId));
         
         setSnackbar({ open: true, message: 'Menu item deleted successfully', severity: 'success' });
         

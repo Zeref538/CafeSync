@@ -87,8 +87,8 @@ const DiscountManagement: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!formData.code || formData.percentage <= 0 || formData.percentage > 100) {
-      setError('Please fill in all fields correctly (percentage must be between 1-100)');
+    if (!formData.code || formData.percentage < 0 || formData.percentage > 100) {
+      setError('Please fill in all fields correctly (percentage must be between 0-100)');
       return;
     }
 
@@ -309,12 +309,15 @@ const DiscountManagement: React.FC = () => {
               label="Discount Percentage"
               type="number"
               fullWidth
-              value={formData.percentage}
-              onChange={(e) => setFormData({ ...formData, percentage: parseFloat(e.target.value) || 0 })}
+              value={formData.percentage || ''}
+              onChange={(e) => {
+                const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                setFormData({ ...formData, percentage: value });
+              }}
               margin="normal"
               required
-              inputProps={{ min: 1, max: 100, step: 1 }}
-              helperText="Enter percentage (1-100)"
+              inputProps={{ min: 0, max: 100, step: 1 }}
+              helperText="Enter percentage (0-100)"
             />
             <TextField
               label="Description"

@@ -14,6 +14,7 @@ import {
   ListItemSecondaryAction,
   IconButton,
   Alert,
+  useTheme,
 } from '@mui/material';
 import {
   Save,
@@ -27,17 +28,30 @@ import {
 import UserManagement from '../../components/Admin/UserManagement';
 import EmployeeInvitation from '../../components/Admin/EmployeeInvitation';
 import AuthDebugger from '../../components/Admin/AuthDebugger';
+import AccountPasswordSection from '../../components/Settings/AccountPasswordSection';
 import { useAuth } from '../../contexts/AuthContext';
 import { notify } from '../../utils/notifications';
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
-  const [settings, setSettings] = useState({
+  
+  // Load settings from localStorage on mount
+  const loadSettings = () => {
+    const savedSettings = localStorage.getItem('cafesync_settings');
+    if (savedSettings) {
+      try {
+        return JSON.parse(savedSettings);
+      } catch (error) {
+        console.error('Error loading settings:', error);
+      }
+    }
+    // Default settings
+    return {
     notifications: {
       orderAlerts: true,
       inventoryAlerts: true,
       lowStockWarnings: true,
-      weatherUpdates: false,
+        weatherUpdates: true,
       soundEnabled: true,
     },
     business: {
@@ -45,7 +59,7 @@ const Settings: React.FC = () => {
       storeAddress: '14 Kumintang Street, Caloocan City, Philippines',
       storePhone: '+63 (2) 123-4567',
       storeEmail: 'info@cafesync.com',
-      operatingHours: '6:00 AM - 10:00 PM',
+      operatingHours: '1:00 PM - 12:00 AM',
     },
     system: {
       autoBackup: true,
@@ -53,10 +67,13 @@ const Settings: React.FC = () => {
       apiIntegrations: true,
       analyticsTracking: true,
     },
-  });
+    };
+  };
+
+  const [settings, setSettings] = useState(loadSettings);
 
   const handleSettingChange = (category: string, setting: string, value: any) => {
-    setSettings(prev => ({
+    setSettings((prev: ReturnType<typeof loadSettings>) => ({
       ...prev,
       [category]: {
         ...prev[category as keyof typeof prev],
@@ -68,21 +85,81 @@ const Settings: React.FC = () => {
   const handleSave = () => {
     localStorage.setItem('cafesync_settings', JSON.stringify(settings));
     notify.success('Settings saved successfully!');
+    // Trigger a custom event to notify other components that settings changed
+    window.dispatchEvent(new CustomEvent('settings-updated', { detail: settings }));
   };
+
+  // Listen for settings updates from other tabs/windows
+  React.useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'cafesync_settings' && e.newValue) {
+        try {
+          setSettings(JSON.parse(e.newValue));
+        } catch (error) {
+          console.error('Error updating settings from storage:', error);
+        }
+      }
+    };
+
+    const handleSettingsUpdate = (e: CustomEvent) => {
+      setSettings(e.detail);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('settings-updated', handleSettingsUpdate as EventListener);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('settings-updated', handleSettingsUpdate as EventListener);
+    };
+  }, []);
+
+  const theme = useTheme();
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
+      <Box sx={{ mb: 4 }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700, 
+            mb: 1,
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, #fff 0%, #e0e0e0 100%)'
+              : 'linear-gradient(135deg, #6B4423 0%, #8B5A3C 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
         Settings
       </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Manage your application preferences and configurations
+        </Typography>
+      </Box>
 
       <Grid container spacing={3}>
         {/* Notifications */}
         <Grid item xs={12} md={6}>
-          <Card>
+          <Card
+            sx={{
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: 'linear-gradient(90deg, #2196f3 0%, #42a5f5 50%, #64b5f6 100%)',
+              },
+            }}
+          >
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Notifications />
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Notifications sx={{ color: 'primary.main', fontSize: 24 }} />
                 Notifications
               </Typography>
               
@@ -158,10 +235,24 @@ const Settings: React.FC = () => {
 
         {/* Business Information */}
         <Grid item xs={12} md={6}>
-          <Card>
+          <Card
+            sx={{
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: 'linear-gradient(90deg, #6B4423 0%, #8B5A3C 50%, #C17D4A 100%)',
+              },
+            }}
+          >
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Store />
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Store sx={{ color: 'primary.main', fontSize: 24 }} />
                 Business Information
               </Typography>
               
@@ -213,10 +304,24 @@ const Settings: React.FC = () => {
 
         {/* System Settings */}
         <Grid item xs={12} md={6}>
-          <Card>
+          <Card
+            sx={{
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: 'linear-gradient(90deg, #ff9800 0%, #ffb74d 50%, #ffcc80 100%)',
+              },
+            }}
+          >
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Security />
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Security sx={{ color: 'warning.main', fontSize: 24 }} />
                 System Settings
               </Typography>
               
@@ -260,6 +365,34 @@ const Settings: React.FC = () => {
                   </ListItemSecondaryAction>
                 </ListItem>
               </List>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Account Security */}
+        <Grid item xs={12} md={6}>
+          <Card
+            sx={{
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: 'linear-gradient(90deg, #4caf50 0%, #66bb6a 50%, #81c784 100%)',
+              },
+            }}
+          >
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Person sx={{ color: 'success.main', fontSize: 24 }} />
+                Account Security
+              </Typography>
+              
+              <AccountPasswordSection />
             </CardContent>
           </Card>
         </Grid>

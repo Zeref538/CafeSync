@@ -40,7 +40,7 @@ import {
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
 import { useAuth } from '../../contexts/AuthContext';
-import toast from 'react-hot-toast';
+import { notify } from '../../utils/notifications';
 import { API_ENDPOINTS } from '../../config/api';
 
 interface SizePrice {
@@ -66,6 +66,7 @@ const FrontCounter: React.FC = () => {
   const theme = useTheme();
   const { socket, joinStation, emitOrderUpdate } = useSocket();
   const { user } = useAuth();
+  const stationId = 'front-counter';
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [currentOrder, setCurrentOrder] = useState<any[]>([]);
@@ -115,7 +116,20 @@ const FrontCounter: React.FC = () => {
         console.log('Front Counter - Loaded menu items:', data);
         console.log('Front Counter - First menu item:', data.data?.[0]);
         console.log('Front Counter - First menu item sizes:', data.data?.[0]?.sizes);
-        setMenuItems(data.data || []);
+        console.log('Front Counter - First menu item imageUrl:', data.data?.[0]?.imageUrl);
+        
+        // Process menu items to ensure imageUrl is properly formatted
+        const processedItems = (data.data || []).map((item: MenuItem) => {
+          // Log image URL for debugging
+          if (item.imageUrl) {
+            console.log(`Front Counter - Item "${item.name}" has imageUrl:`, item.imageUrl.substring(0, 50) + '...');
+          } else {
+            console.log(`Front Counter - Item "${item.name}" has NO imageUrl`);
+          }
+          return item;
+        });
+        
+        setMenuItems(processedItems);
       } else {
         // No fallback - start with empty menu
         console.error('Front Counter - Failed to load menu items');
@@ -215,7 +229,7 @@ const FrontCounter: React.FC = () => {
   const handleApplyDiscount = () => {
     const code = discountCode.toUpperCase().trim();
     if (!code) {
-      toast.error('Please enter a discount code');
+      notify.error('Please enter a discount code', true, false);
       return;
     }
 
@@ -225,9 +239,9 @@ const FrontCounter: React.FC = () => {
     if (discount) {
       setDiscountPercentage(discount.percentage);
       setShowDiscountInput(false);
-      toast.success(`Discount code applied! ${discount.percentage}% off`);
+      notify.success(`Discount code applied! ${discount.percentage}% off`, true, false);
     } else {
-      toast.error('Invalid discount code');
+      notify.error('Invalid discount code', true, false);
     }
   };
 
@@ -359,9 +373,11 @@ const FrontCounter: React.FC = () => {
         code: discountCode,
       } : null,
       total: getTotalPrice(),
-      station: 'front-counter',
+        station: stationId,
       paymentMethod: customerInfo.paymentMethod,
-      staffId: user?.id || 'anonymous',
+      staffId: user?.email || user?.id || 'anonymous',
+      staffEmail: user?.email || '',
+      staffName: user?.name || '',
       timestamp: new Date().toISOString(),
     };
 
@@ -393,14 +409,23 @@ const FrontCounter: React.FC = () => {
         setDiscountPercentage(0);
         setShowDiscountInput(false);
 
-        // Show success message
-        toast.success(`Order #${createdOrder.orderNumber} placed successfully!`);
+        // Show success message - this is a user action confirmation, not an order alert
+        notify.success(`Order #${createdOrder.orderNumber} placed successfully!`, true, false);
+        
+        // Notify Order Station about new order
+        const customerName = createdOrder.customer || 'Takeout';
+        const itemCount = createdOrder.items?.length || 0;
+        const orderMessage = `New Order #${createdOrder.orderNumber} from ${customerName} - ${itemCount} item${itemCount !== 1 ? 's' : ''}`;
+        notify.info(orderMessage, true, true, 'orderAlerts');
+        
+        // Trigger notification refresh (notification created in backend)
+        window.dispatchEvent(new CustomEvent('refresh-notifications'));
         
         // Emit order update via socket to notify other stations
         try {
           emitOrderUpdate({
             ...createdOrder,
-            station: 'front-counter',
+            station: stationId,
             timestamp: new Date().toISOString(),
           });
         } catch (socketError) {
@@ -411,17 +436,17 @@ const FrontCounter: React.FC = () => {
       } else {
         const errorText = await response.text();
         console.error('Failed to place order:', response.status, errorText);
-        toast.error('Failed to place order. Please try again.');
+        notify.error('Failed to place order. Please try again.', true, false);
       }
     } catch (error) {
       console.error('Error placing order:', error);
-      toast.error('Network error. Please check your connection and try again.');
+      notify.error('Network error. Please check your connection and try again.', true, false);
     }
   };
 
   React.useEffect(() => {
-    joinStation('front-counter');
-  }, [joinStation]);
+    joinStation(stationId);
+  }, [joinStation, stationId]);
 
   // Listen for menu updates from Menu Management
   React.useEffect(() => {
@@ -442,17 +467,103 @@ const FrontCounter: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
+      <Box sx={{ mb: 4 }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700, 
+            mb: 1,
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, #fff 0%, #e0e0e0 100%)'
+              : 'linear-gradient(135deg, #6B4423 0%, #8B5A3C 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
         Front Counter
       </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Manage orders and menu items
+        </Typography>
+      </Box>
 
       <Grid container spacing={3}>
         {/* Menu Items */}
         <Grid item xs={12} md={9}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, flex: 1 }}>
+          <Card
+            sx={{
+              position: 'relative',
+              overflow: 'visible',
+              display: 'flex',
+              flexDirection: 'column',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: 'linear-gradient(90deg, #6B4423 0%, #8B5A3C 50%, #C17D4A 100%)',
+                zIndex: 1001,
+              },
+            }}
+          >
+            {/* Sticky Header */}
+            <Box 
+              component="div"
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 2, 
+                p: 3,
+                pb: 2,
+                flexWrap: 'wrap',
+                position: 'sticky',
+                top: 76, // AppBar height (64px) + padding (12px)
+                zIndex: 1000, // High z-index to stay above content
+                backgroundColor: theme.palette.mode === 'dark' 
+                  ? theme.palette.background.paper 
+                  : theme.palette.background.paper,
+                borderBottom: theme.palette.mode === 'dark'
+                  ? '1px solid rgba(255,255,255,0.1)'
+                  : '1px solid rgba(0,0,0,0.08)',
+                boxShadow: theme.palette.mode === 'dark'
+                  ? '0 4px 8px rgba(0,0,0,0.3)'
+                  : '0 4px 12px rgba(0,0,0,0.15)',
+                marginBottom: 0,
+                marginTop: 0,
+              }}
+            >
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 600, 
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: theme.palette.primary.main,
+                      animation: 'pulse 2s ease-in-out infinite',
+                      '@keyframes pulse': {
+                        '0%, 100%': {
+                          opacity: 1,
+                          transform: 'scale(1)',
+                        },
+                        '50%': {
+                          opacity: 0.6,
+                          transform: 'scale(1.2)',
+                        },
+                      },
+                    }}
+                  />
                   Menu Items
                 </Typography>
                 <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -487,6 +598,8 @@ const FrontCounter: React.FC = () => {
                 />
               </Box>
 
+            {/* Scrollable Content */}
+            <CardContent sx={{ pt: 0, flex: 1, overflow: 'auto' }}>
               {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress />
@@ -497,18 +610,106 @@ const FrontCounter: React.FC = () => {
                     <Grid item xs={12} sm={6} md={3} key={item.id}>
                       <Paper
                         sx={{
-                          p: 1.5,
+                          p: 2,
                           cursor: 'pointer',
-                          border: '1px solid #e0e0e0',
-                          borderRadius: 2,
+                          border: theme.palette.mode === 'dark'
+                            ? '1px solid rgba(255,255,255,0.08)'
+                            : '1px solid rgba(107, 68, 35, 0.12)',
+                          borderRadius: 3,
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          background: theme.palette.mode === 'dark'
+                            ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.8) 0%, rgba(40, 40, 40, 0.6) 100%)'
+                            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(250, 248, 245, 0.8) 100%)',
+                          '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: 3,
+                            background: item.isAvailable
+                              ? 'linear-gradient(90deg, #4caf50 0%, #66bb6a 100%)'
+                              : 'linear-gradient(90deg, #f44336 0%, #e57373 100%)',
+                            transform: 'scaleX(0)',
+                            transformOrigin: 'left',
+                            transition: 'transform 0.3s ease',
+                          },
                           '&:hover': {
-                            borderColor: '#8B4513',
-                            backgroundColor: '#f5f5f5',
+                            borderColor: theme.palette.primary.main,
+                            backgroundColor: theme.palette.mode === 'dark' 
+                              ? 'rgba(255,255,255,0.1)' 
+                              : 'rgba(107, 68, 35, 0.05)',
+                            transform: 'translateY(-4px) scale(1.02)',
+                            boxShadow: theme.palette.mode === 'dark'
+                              ? '0 8px 24px rgba(0,0,0,0.4)'
+                              : '0 8px 24px rgba(107, 68, 35, 0.2)',
+                            '&::before': {
+                              transform: 'scaleX(1)',
+                            },
                           },
                         }}
                         onClick={() => openCustomization(item)}
                       >
-                        <Box sx={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#eeeeee', borderRadius: 1, mb: 1 }} />
+                        {/* Menu Item Image */}
+                        <Box 
+                          sx={{ 
+                            width: '100%', 
+                            aspectRatio: '1 / 1', 
+                            borderRadius: 1, 
+                            mb: 1,
+                            overflow: 'hidden',
+                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#eeeeee',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            position: 'relative',
+                          }}
+                        >
+                          {item.imageUrl && item.imageUrl.trim() ? (
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                              onError={(e) => {
+                                console.error(`Front Counter - Failed to load image for "${item.name}":`, item.imageUrl?.substring(0, 50));
+                                // Fallback if image fails to load
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent && !parent.querySelector('.error-fallback')) {
+                                  const fallback = document.createElement('div');
+                                  fallback.className = 'error-fallback';
+                                  fallback.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #999; font-size: 14px;';
+                                  fallback.textContent = 'Image Error';
+                                  parent.appendChild(fallback);
+                                }
+                              }}
+                              onLoad={() => {
+                                console.log(`Front Counter - Successfully loaded image for "${item.name}"`);
+                              }}
+                            />
+                          ) : (
+                            <Box
+                              sx={{
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: theme.palette.text.secondary,
+                                fontSize: '0.875rem',
+                              }}
+                            >
+                              No Image
+                            </Box>
+                          )}
+                        </Box>
                         <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
                           {item.name}
                         </Typography>
@@ -526,9 +727,40 @@ const FrontCounter: React.FC = () => {
 
         {/* Order Summary */}
         <Grid item xs={12} md={3}>
-          <Card sx={{ position: 'sticky', top: 20 }}>
+          <Card 
+            sx={{ 
+              position: 'sticky', 
+              top: 20,
+              overflow: 'hidden',
+              background: theme.palette.mode === 'dark'
+                ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(40, 40, 40, 0.9) 100%)'
+                : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 248, 245, 0.95) 100%)',
+              border: theme.palette.mode === 'dark'
+                ? '1px solid rgba(255,255,255,0.1)'
+                : '1px solid rgba(107, 68, 35, 0.15)',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: 'linear-gradient(90deg, #2196f3 0%, #42a5f5 50%, #64b5f6 100%)',
+              },
+            }}
+          >
             <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: 600, 
+                  mb: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}
+              >
+                <Receipt sx={{ color: 'primary.main', fontSize: 20 }} />
                 Current Order
               </Typography>
 
@@ -567,9 +799,44 @@ const FrontCounter: React.FC = () => {
 
               {/* Order Items */}
               {currentOrder.length === 0 ? (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <ShoppingCart sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-                  <Typography variant="body1" color="text.secondary">
+                <Box 
+                  sx={{ 
+                    textAlign: 'center', 
+                    py: 6,
+                    position: 'relative',
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: 100,
+                      height: 100,
+                      borderRadius: '50%',
+                      background: theme.palette.mode === 'dark'
+                        ? 'radial-gradient(circle, rgba(107, 68, 35, 0.1) 0%, transparent 70%)'
+                        : 'radial-gradient(circle, rgba(107, 68, 35, 0.05) 0%, transparent 70%)',
+                    },
+                  }}
+                >
+                  <ShoppingCart 
+                    sx={{ 
+                      fontSize: 64, 
+                      color: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(107, 68, 35, 0.15)',
+                      mb: 2,
+                      position: 'relative',
+                      zIndex: 1,
+                    }} 
+                  />
+                  <Typography 
+                    variant="body1" 
+                    color="text.secondary"
+                    sx={{ 
+                      position: 'relative',
+                      zIndex: 1,
+                      fontWeight: 500,
+                    }}
+                  >
                     No items in order
                   </Typography>
                 </Box>
@@ -605,27 +872,64 @@ const FrontCounter: React.FC = () => {
                           )}
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Button
-                            size="small"
-                            onClick={() => updateQuantityByIndex(index, item.quantity - 1)}
-                            sx={{ minWidth: 32, height: 32 }}
-                          >
-                            -
-                          </Button>
-                          <Typography variant="body2" sx={{ minWidth: 20, textAlign: 'center' }}>
-                            {item.quantity}
-                          </Typography>
-                          <Button
-                            size="small"
-                            onClick={() => updateQuantityByIndex(index, item.quantity + 1)}
-                            sx={{ minWidth: 32, height: 32 }}
-                          >
-                            +
-                          </Button>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, border: `1px solid ${theme.palette.divider}`, borderRadius: 2, overflow: 'hidden' }}>
+                            <IconButton
+                              size="small"
+                              onClick={() => updateQuantityByIndex(index, Math.max(0, (item.quantity || 1) - 1))}
+                              disabled={!item.quantity || item.quantity <= 1}
+                              sx={{
+                                borderRadius: 0,
+                                minWidth: 32,
+                                height: 32,
+                                color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513',
+                                '&:hover': {
+                                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(212, 165, 116, 0.1)' : 'rgba(139, 69, 19, 0.08)',
+                                },
+                                '&.Mui-disabled': {
+                                  color: theme.palette.action.disabled,
+                                },
+                              }}
+                            >
+                              <Remove fontSize="small" />
+                            </IconButton>
+                            <Typography
+                              variant="body1"
+                            sx={{ 
+                                minWidth: 40,
+                                textAlign: 'center',
+                                fontWeight: 600,
+                                px: 1,
+                                py: 0.5,
+                                userSelect: 'none',
+                              }}
+                            >
+                              {item.quantity || 1}
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              onClick={() => updateQuantityByIndex(index, (item.quantity || 1) + 1)}
+                              sx={{
+                                borderRadius: 0,
+                                minWidth: 32,
+                                height: 32,
+                                color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513',
+                                '&:hover': {
+                                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(212, 165, 116, 0.1)' : 'rgba(139, 69, 19, 0.08)',
+                                },
+                              }}
+                            >
+                              <Add fontSize="small" />
+                            </IconButton>
+                          </Box>
                           <IconButton
                             size="small"
                             onClick={() => removeFromOrderByIndex(index)}
                             color="error"
+                            sx={{
+                              '&:hover': {
+                                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : 'rgba(244, 67, 54, 0.08)',
+                              },
+                            }}
                           >
                             <Delete />
                           </IconButton>
@@ -730,7 +1034,30 @@ const FrontCounter: React.FC = () => {
                 startIcon={<Receipt />}
                 onClick={handlePlaceOrder}
                 disabled={currentOrder.length === 0}
-                sx={{ py: 1.5, fontSize: '1.1rem', fontWeight: 600 }}
+                sx={{ 
+                  mt: 3,
+                  mb: 1,
+                  py: 1.5,
+                  fontSize: '1.1rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  background: currentOrder.length > 0
+                    ? 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)'
+                    : undefined,
+                  boxShadow: currentOrder.length > 0
+                    ? '0 4px 16px rgba(76, 175, 80, 0.4)'
+                    : undefined,
+                  '&:hover': {
+                    background: currentOrder.length > 0
+                      ? 'linear-gradient(135deg, #66bb6a 0%, #81c784 100%)'
+                      : undefined,
+                    boxShadow: currentOrder.length > 0
+                      ? '0 6px 20px rgba(76, 175, 80, 0.5)'
+                      : undefined,
+                    transform: currentOrder.length > 0 ? 'translateY(-2px)' : undefined,
+                  },
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
               >
                 Place Order
               </Button>
@@ -766,28 +1093,57 @@ const FrontCounter: React.FC = () => {
               </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513' }}>
-                Quantity
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Button
-                    variant="outlined"
+              <Box sx={{ mt: 2, mb: 2 }}>
+                <Typography variant="body2" sx={{ mb: 1, fontWeight: 500, color: 'text.secondary' }}>
+                  Quantity
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, border: `1px solid ${theme.palette.divider}`, borderRadius: 2, overflow: 'hidden', width: 'fit-content' }}>
+                  <IconButton
+                    size="small"
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    sx={{ minWidth: 40 }}
+                    disabled={quantity <= 1}
+                    sx={{
+                      borderRadius: 0,
+                      minWidth: 40,
+                      height: 40,
+                      color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513',
+                      '&:hover': {
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(212, 165, 116, 0.1)' : 'rgba(139, 69, 19, 0.08)',
+                      },
+                      '&.Mui-disabled': {
+                        color: theme.palette.action.disabled,
+                      },
+                    }}
                   >
-                    -
-                  </Button>
-                  <Typography variant="h6" sx={{ minWidth: 30, textAlign: 'center' }}>
+                    <Remove />
+                  </IconButton>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      minWidth: 50,
+                      textAlign: 'center',
+                      fontWeight: 700,
+                      px: 2,
+                      userSelect: 'none',
+                    }}
+                  >
                     {quantity}
                   </Typography>
-                  <Button
-                    variant="outlined"
+                  <IconButton
+                    size="small"
                     onClick={() => setQuantity(quantity + 1)}
-                    sx={{ minWidth: 40 }}
+                    sx={{
+                      borderRadius: 0,
+                      minWidth: 40,
+                      height: 40,
+                      color: theme.palette.mode === 'dark' ? '#d4a574' : '#8B4513',
+                      '&:hover': {
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(212, 165, 116, 0.1)' : 'rgba(139, 69, 19, 0.08)',
+                      },
+                    }}
                   >
-                    +
-                  </Button>
+                    <Add />
+                  </IconButton>
                 </Box>
               </Box>
             </Grid>

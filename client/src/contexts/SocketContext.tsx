@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
+import { notify } from '../utils/notifications';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -69,7 +70,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
       newSocket.on('inventory-update', (data) => {
         console.log('Inventory update received:', data);
-        toast.success(`Inventory updated: ${data.itemName}`);
+        // Check inventoryAlerts setting before showing notification
+        notify.success(`Inventory updated: ${data.itemName}`, true, true, 'inventoryAlerts');
       });
 
       newSocket.on('analytics-update', (data) => {

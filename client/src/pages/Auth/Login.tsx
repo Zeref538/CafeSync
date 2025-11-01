@@ -25,6 +25,7 @@ import {
   Google,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import CafeSyncLogo from '../../components/Layout/CafeSyncLogo';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -87,42 +88,79 @@ const Login: React.FC = () => {
       sx={{
         minHeight: '100vh',
         background: theme.palette.mode === 'dark' 
-          ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #3a3a3a 100%)'
+          ? 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 50%, #121212 100%)'
           : 'linear-gradient(135deg, #6B4423 0%, #8B5A3C 50%, #C17D4A 100%)',
+        backgroundImage: theme.palette.mode === 'dark'
+          ? 'radial-gradient(circle at 20% 30%, rgba(107, 68, 35, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(139, 69, 19, 0.12) 0%, transparent 50%)'
+          : 'radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.08) 0%, transparent 50%)',
+        backgroundAttachment: 'fixed',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         p: 2,
+        position: 'relative',
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: '-50%',
+          right: '-20%',
+          width: '80%',
+          height: '200%',
+          background: theme.palette.mode === 'dark'
+            ? 'radial-gradient(circle, rgba(107, 68, 35, 0.1) 0%, transparent 70%)'
+            : 'radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%)',
+          borderRadius: '50%',
+          animation: 'pulse 8s ease-in-out infinite',
+        },
+        '@keyframes pulse': {
+          '0%, 100%': {
+            transform: 'scale(1) rotate(0deg)',
+            opacity: 0.5,
+          },
+          '50%': {
+            transform: 'scale(1.1) rotate(180deg)',
+            opacity: 0.8,
+          },
+        },
       }}
     >
       <Container maxWidth="sm">
+        {/* Logo at top */}
+        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center' }}>
+          <CafeSyncLogo variant="full" size="large" />
+        </Box>
+        
         <Card
           sx={{
             borderRadius: 4,
             boxShadow: theme.palette.mode === 'dark' 
-              ? '0 20px 40px rgba(0,0,0,0.3)' 
-              : '0 20px 40px rgba(0,0,0,0.1)',
+              ? '0 24px 48px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05)' 
+              : '0 24px 48px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
             overflow: 'hidden',
+            position: 'relative',
+            zIndex: 1,
+            backdropFilter: 'blur(10px)',
+            background: theme.palette.mode === 'dark'
+              ? 'rgba(30, 30, 30, 0.9)'
+              : 'rgba(255, 255, 255, 0.98)',
+            border: theme.palette.mode === 'dark'
+              ? '1px solid rgba(255, 255, 255, 0.1)'
+              : '1px solid rgba(255, 255, 255, 0.3)',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              boxShadow: theme.palette.mode === 'dark'
+                ? '0 32px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)'
+                : '0 32px 64px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.08)',
+              transform: 'translateY(-4px)',
+            },
           }}
         >
           <CardContent sx={{ p: 4 }}>
-            {/* Header */}
+            {/* Welcome message */}
             <Box sx={{ textAlign: 'center', mb: 4 }}>
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mb: 2,
-                }}
-              >
-                <Coffee sx={{ fontSize: 40, color: theme.palette.primary.main, mr: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-                  CafeSync
-                </Typography>
-              </Box>
               <Typography variant="h6" sx={{ color: 'text.secondary', mb: 1 }}>
-                Smart Coffee Shop Management
+                Welcome Back
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                 Sign in to access your dashboard

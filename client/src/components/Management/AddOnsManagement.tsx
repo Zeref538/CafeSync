@@ -268,8 +268,11 @@ const AddOnsManagement: React.FC = () => {
               label="Price (₱)"
               type="number"
               fullWidth
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+              value={formData.price || ''}
+              onChange={(e) => {
+                const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                setFormData({ ...formData, price: value });
+              }}
               margin="normal"
               required
               inputProps={{ min: 0, step: 0.01 }}

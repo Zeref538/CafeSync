@@ -31,6 +31,10 @@ function App() {
     <Box sx={{ 
       minHeight: '100vh',
       backgroundColor: theme.palette.background.default,
+      backgroundImage: theme.palette.mode === 'dark'
+        ? 'radial-gradient(circle at 20% 50%, rgba(107, 68, 35, 0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(139, 69, 19, 0.06) 0%, transparent 50%)'
+        : 'radial-gradient(circle at 20% 50%, rgba(107, 68, 35, 0.03) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(139, 69, 19, 0.02) 0%, transparent 50%)',
+      backgroundAttachment: 'fixed',
       touchAction: 'manipulation'
     }}>
       <Routes>

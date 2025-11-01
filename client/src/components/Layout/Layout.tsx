@@ -26,7 +26,8 @@ import { useSocket } from '../../contexts/SocketContext';
 import NavigationItem from './NavigationItem';
 import UserMenu from './UserMenu';
 import DarkModeToggle from './DarkModeToggle';
-import NotificationCenter from './NotificationCenter';
+import CafeSyncLogo from './CafeSyncLogo';
+import NotificationHistoryButton from './NotificationHistoryButton';
 
 const drawerWidth = 280;
 
@@ -85,7 +86,7 @@ const Layout: React.FC = () => {
         badge: undefined,
       },
       {
-        text: 'Orders',
+        text: 'Order Station',
         icon: <KitchenIcon />,
         path: '/station/orders',
         permission: 'orders',
@@ -127,21 +128,31 @@ const Layout: React.FC = () => {
         sx={{
           p: 3,
           background: theme.palette.mode === 'dark'
-            ? 'linear-gradient(135deg, #654321 0%, #8B4513 100%)'
-            : 'linear-gradient(135deg, #6B4423 0%, #8B5A3C 100%)',
-          color: 'white',
+            ? 'linear-gradient(135deg, rgba(107, 68, 35, 0.15) 0%, rgba(139, 69, 19, 0.25) 100%)'
+            : 'linear-gradient(135deg, rgba(107, 68, 35, 0.08) 0%, rgba(139, 69, 19, 0.12) 100%)',
+          borderBottom: theme.palette.mode === 'dark' 
+            ? '1px solid rgba(255,255,255,0.08)' 
+            : '1px solid rgba(107, 68, 35, 0.1)',
           textAlign: 'center',
+          position: 'relative',
+          overflow: 'hidden',
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 1,
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(90deg, transparent 0%, rgba(139, 69, 19, 0.5) 50%, transparent 100%)'
+              : 'linear-gradient(90deg, transparent 0%, rgba(107, 68, 35, 0.3) 50%, transparent 100%)',
+          },
         }}
       >
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-          CafeSync
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.8 }}>
-          Smart Coffee Management
-        </Typography>
+        <CafeSyncLogo variant="full" size="medium" />
         <Box
           sx={{
-            mt: 1,
+            mt: 2,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -156,7 +167,13 @@ const Layout: React.FC = () => {
               backgroundColor: isConnected ? '#4caf50' : '#f44336',
             }}
           />
-          <Typography variant="caption">
+          <Typography 
+            variant="caption"
+            sx={{
+              color: theme.palette.text.secondary,
+              fontSize: '0.7rem',
+            }}
+          >
             {isConnected ? 'Connected' : 'Disconnected'}
           </Typography>
         </Box>
@@ -217,13 +234,17 @@ const Layout: React.FC = () => {
             <MenuIcon />
           </IconButton>
           
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
+          <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <CafeSyncLogo variant="icon-only" size="small" />
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
             {navigationItems.find(item => item.path === location.pathname)?.text || 'CafeSync'}
           </Typography>
+          </Box>
 
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <NotificationHistoryButton />
           <DarkModeToggle />
-          
-          <NotificationCenter />
+          </Box>
         </Toolbar>
       </AppBar>
 

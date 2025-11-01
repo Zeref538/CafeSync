@@ -26,6 +26,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  useTheme,
+  CircularProgress,
 } from '@mui/material';
 import {
   Search,
@@ -33,11 +35,13 @@ import {
   Refresh,
   Add,
   Edit,
+  Delete,
   Inventory as InventoryIcon,
   ShoppingCart,
 } from '@mui/icons-material';
 import { useSocket } from '../../contexts/SocketContext';
 import { API_ENDPOINTS, API_BASE } from '../../config/api';
+import { notify } from '../../utils/notifications';
 
 interface InventoryItem {
   id: string;
@@ -55,6 +59,7 @@ interface InventoryItem {
 }
 
 const Inventory: React.FC = () => {
+  const theme = useTheme();
   const { socket } = useSocket();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [filteredInventory, setFilteredInventory] = useState<InventoryItem[]>([]);
@@ -75,81 +80,42 @@ const Inventory: React.FC = () => {
     maxStock: 0,
     unit: '',
     costPerUnit: 0,
-    supplier: '',
     location: '',
   });
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Fetch inventory from API
   const fetchInventory = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(API_ENDPOINTS.INVENTORY);
+      console.log('🔄 Fetching inventory from:', API_ENDPOINTS.INVENTORY);
+      const response = await fetch(API_ENDPOINTS.INVENTORY, {
+        cache: 'no-cache', // Force fresh data
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const result = await response.json();
+      console.log('📦 Inventory API response:', result);
       
-      if (result.success) {
+      if (result.success && result.data) {
+        console.log('✅ Setting inventory data:', result.data.length, 'items');
         setInventory(result.data);
         setFilteredInventory(result.data);
       } else {
         throw new Error(result.error || 'Failed to fetch inventory');
       }
     } catch (err) {
-      console.error('Error fetching inventory:', err);
+      console.error('❌ Error fetching inventory:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch inventory');
-      // Fallback to mock data if API fails
-      const mockInventory: InventoryItem[] = [
-        {
-          id: 'coffee-beans-1',
-          name: 'Premium Arabica Beans',
-          category: 'coffee',
-          currentStock: 50,
-          minStock: 10,
-          maxStock: 100,
-          unit: 'lbs',
-          costPerUnit: 12.50,
-          supplier: 'Coffee Supply Co.',
-          lastRestocked: '2024-01-15T10:00:00Z',
-          expiryDate: '2024-06-15T00:00:00Z',
-          location: 'storage-room-a',
-        },
-        {
-          id: 'milk-whole-1',
-          name: 'Whole Milk',
-          category: 'dairy',
-          currentStock: 3,
-          minStock: 5,
-          maxStock: 50,
-          unit: 'gallons',
-          costPerUnit: 3.50,
-          supplier: 'Dairy Fresh',
-          lastRestocked: '2024-01-20T08:00:00Z',
-          expiryDate: '2024-01-27T00:00:00Z',
-          location: 'refrigerator-1',
-        },
-        {
-          id: 'syrup-vanilla-1',
-          name: 'Vanilla Syrup',
-          category: 'syrups',
-          currentStock: 1,
-          minStock: 3,
-          maxStock: 20,
-          unit: 'bottles',
-          costPerUnit: 8.99,
-          supplier: 'Flavor Masters',
-          lastRestocked: '2024-01-18T14:00:00Z',
-          expiryDate: '2025-01-18T00:00:00Z',
-          location: 'shelf-b2',
-        },
-      ];
-      setInventory(mockInventory);
-      setFilteredInventory(mockInventory);
+      // Don't use fallback mock data - let the error show
     } finally {
       setLoading(false);
     }
@@ -177,6 +143,65 @@ const Inventory: React.FC = () => {
       }
     };
   }, [socket, fetchInventory]);
+
+  // Hourly low stock alert pop-ups (only once per hour, per session)
+  useEffect(() => {
+    const STORAGE_KEY = 'cafesync_last_inventory_alert';
+    const ALERT_INTERVAL = 3600000; // 1 hour in milliseconds
+
+    // Function to check and show low stock alerts
+    const checkLowStockAlerts = async () => {
+      try {
+        // Check if we've already alerted in this hour
+        const lastAlertTime = localStorage.getItem(STORAGE_KEY);
+        const now = Date.now();
+        
+        if (lastAlertTime) {
+          const timeSinceLastAlert = now - parseInt(lastAlertTime, 10);
+          // If less than 1 hour has passed, don't alert
+          if (timeSinceLastAlert < ALERT_INTERVAL) {
+            console.log(`⏰ Inventory alerts already shown ${Math.round((ALERT_INTERVAL - timeSinceLastAlert) / 60000)} minutes ago. Next alert in ${Math.round((ALERT_INTERVAL - timeSinceLastAlert) / 60000)} minutes.`);
+            return;
+          }
+        }
+
+        const response = await fetch(API_ENDPOINTS.INVENTORY_ALERTS);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data && result.data.length > 0) {
+            const lowStockItems = result.data;
+            
+            // Show pop-up notification for each low stock item - check lowStockWarnings setting
+            lowStockItems.forEach((item: InventoryItem) => {
+              notify.warning(
+                `${item.name} is running low! Current: ${item.currentStock} ${item.unit}, Minimum: ${item.minStock} ${item.unit}`,
+                true, // Play sound
+                true, // Check if enabled
+                'lowStockWarnings' // Notification type
+              );
+            });
+            
+            // Store the alert time to prevent re-alerting
+            localStorage.setItem(STORAGE_KEY, now.toString());
+            console.log('✅ Inventory alerts shown. Next alert in 1 hour.');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking low stock alerts:', error);
+      }
+    };
+
+    // Check immediately on mount (will only show if 1 hour has passed since last alert)
+    checkLowStockAlerts();
+
+    // Set up interval to check every hour (3600000 milliseconds = 1 hour)
+    const interval = setInterval(() => {
+      checkLowStockAlerts();
+    }, ALERT_INTERVAL);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
+  }, []); // Empty dependency array - only run on mount
 
   // Update inventory stock
   const updateStock = async (itemId: string, quantity: number, operation: 'add' | 'subtract' | 'set', reason?: string) => {
@@ -241,7 +266,6 @@ const Inventory: React.FC = () => {
       maxStock: 0,
       unit: '',
       costPerUnit: 0,
-      supplier: '',
       location: '',
     });
     setAddDialogOpen(true);
@@ -267,6 +291,76 @@ const Inventory: React.FC = () => {
     }
   };
 
+  // Handle Delete button click
+  const handleDeleteClick = (item: InventoryItem) => {
+    setItemToDelete(item);
+    setDeleteDialogOpen(true);
+  };
+
+  // Handle Delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      setDeleting(true);
+      const itemId = itemToDelete.id;
+      console.log('🗑️ Deleting inventory item:', itemId);
+      console.log('🗑️ Delete URL:', `${API_ENDPOINTS.INVENTORY}?id=${itemId}`);
+      
+      const response = await fetch(`${API_ENDPOINTS.INVENTORY}?id=${encodeURIComponent(itemId)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('🗑️ Delete response status:', response.status);
+      const responseText = await response.text();
+      console.log('🗑️ Delete response text:', responseText);
+
+      if (response.ok) {
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (e) {
+          result = { success: true };
+        }
+        console.log('✅ Delete successful:', result);
+        setDeleteDialogOpen(false);
+        const deletedItemName = itemToDelete.name;
+        setItemToDelete(null);
+        // Force refresh inventory - wait a bit to ensure Firebase has updated
+        setTimeout(async () => {
+          await fetchInventory();
+          setSnackbarMessage(`"${deletedItemName}" deleted successfully`);
+          setSnackbarOpen(true);
+        }, 500);
+      } else {
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch (e) {
+          errorData = { error: responseText };
+        }
+        console.error('❌ Failed to delete item:', response.status, errorData);
+        setSnackbarMessage(`Failed to delete item: ${errorData.error || errorData.message || responseText}`);
+        setSnackbarOpen(true);
+      }
+    } catch (err) {
+      console.error('❌ Error deleting item:', err);
+      setSnackbarMessage(`Failed to delete item: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setSnackbarOpen(true);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Handle Delete cancel
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setItemToDelete(null);
+  };
+
   // Handle Save (Add/Edit)
   const handleSaveItem = async () => {
     try {
@@ -274,31 +368,62 @@ const Inventory: React.FC = () => {
       
       if (isEditMode && selectedItem) {
         // Update existing item
-        const response = await fetch(`${API_BASE}/api/inventory/${selectedItem.id}`, {
+        // Firebase Functions expects PUT to /api/inventory with ID in body, not in URL
+        // Remove id from formData to avoid conflicts, we'll set it explicitly
+        const { id: _, ...formDataWithoutId } = formData;
+        const updateData = {
+          ...formDataWithoutId,
+          id: selectedItem.id, // Use the original item ID
+          lastRestocked: selectedItem.lastRestocked || new Date().toISOString(),
+        };
+        
+        const response = await fetch(`${API_ENDPOINTS.INVENTORY}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...formData,
-            id: selectedItem.id,
-            lastRestocked: selectedItem.lastRestocked,
-          }),
+          body: JSON.stringify(updateData),
         });
 
         if (response.ok) {
+          const result = await response.json();
+          console.log('✅ Update successful:', result);
           setEditDialogOpen(false);
-          await fetchInventory();
-          setSnackbarMessage('Item updated successfully');
+          setIsEditMode(false);
+          setSelectedItem(null);
+          // Clear form data before refreshing to avoid stale data
+          setFormData({
+            name: '',
+            category: '',
+            currentStock: 0,
+            minStock: 0,
+            maxStock: 0,
+            unit: '',
+            costPerUnit: 0,
+            location: '',
+          });
+          // Force refresh - wait a bit to ensure Firebase has updated
+          setTimeout(async () => {
+            await fetchInventory(); // Refresh inventory list
+            setSnackbarMessage('Item updated successfully');
+            setSnackbarOpen(true);
+          }, 500);
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to update item:', response.status, errorText);
+          setSnackbarMessage(`Failed to update item: ${errorText}`);
           setSnackbarOpen(true);
         }
       } else {
-        // Add new item
+        // Add new item - don't include id, let Firebase generate it
         const newItem = {
           ...formData,
-          id: `item-${Date.now()}`,
+          // Remove id if it exists - Firebase will generate it
+          id: undefined,
           lastRestocked: new Date().toISOString(),
         };
+        // Remove id from the object
+        delete (newItem as any).id;
 
-        const response = await fetch(`${API_BASE}/api/inventory`, {
+        const response = await fetch(`${API_ENDPOINTS.INVENTORY}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newItem),
@@ -306,8 +431,26 @@ const Inventory: React.FC = () => {
 
         if (response.ok) {
           setAddDialogOpen(false);
+          setIsEditMode(false);
+          setSelectedItem(null);
+          // Clear form data before refreshing
+          setFormData({
+            name: '',
+            category: '',
+            currentStock: 0,
+            minStock: 0,
+            maxStock: 0,
+            unit: '',
+            costPerUnit: 0,
+            location: '',
+          });
           await fetchInventory();
           setSnackbarMessage('Item added successfully');
+          setSnackbarOpen(true);
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to add item:', response.status, errorText);
+          setSnackbarMessage(`Failed to add item: ${errorText}`);
           setSnackbarOpen(true);
         }
       }
@@ -327,8 +470,7 @@ const Inventory: React.FC = () => {
     if (searchTerm) {
       filtered = filtered.filter(item =>
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.supplier.toLowerCase().includes(searchTerm.toLowerCase())
+        item.category.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -372,55 +514,168 @@ const Inventory: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
+      <Box sx={{ mb: 4 }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700, 
+            mb: 1,
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, #fff 0%, #e0e0e0 100%)'
+              : 'linear-gradient(135deg, #6B4423 0%, #8B5A3C 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
         Inventory Management
       </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Track and manage your inventory items
+        </Typography>
+      </Box>
 
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#2196f3' }}>
+          <Card sx={{ 
+            position: 'relative',
+            overflow: 'hidden',
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 248, 245, 0.9) 100%)',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '60%',
+              height: '60%',
+              background: 'radial-gradient(circle, rgba(33, 150, 243, 0.15) 0%, transparent 70%)',
+              borderRadius: '50%',
+              transform: 'translate(30%, -30%)',
+            },
+          }}>
+            <CardContent sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 700, 
+                color: '#2196f3',
+                background: 'linear-gradient(135deg, #2196f3 0%, #42a5f5 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
                 {stats.totalItems}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mt: 0.5 }}>
                 Total Items
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#f44336' }}>
+          <Card sx={{ 
+            position: 'relative',
+            overflow: 'hidden',
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 248, 245, 0.9) 100%)',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '60%',
+              height: '60%',
+              background: 'radial-gradient(circle, rgba(244, 67, 54, 0.15) 0%, transparent 70%)',
+              borderRadius: '50%',
+              transform: 'translate(30%, -30%)',
+            },
+          }}>
+            <CardContent sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 700, 
+                color: '#f44336',
+                background: 'linear-gradient(135deg, #f44336 0%, #e57373 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
                 {stats.lowStockItems}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mt: 0.5 }}>
                 Low Stock
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#4caf50' }}>
+          <Card sx={{ 
+            position: 'relative',
+            overflow: 'hidden',
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 248, 245, 0.9) 100%)',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '60%',
+              height: '60%',
+              background: 'radial-gradient(circle, rgba(76, 175, 80, 0.15) 0%, transparent 70%)',
+              borderRadius: '50%',
+              transform: 'translate(30%, -30%)',
+            },
+          }}>
+            <CardContent sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 700, 
+                color: '#4caf50',
+                background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
                 ₱{stats.totalValue.toFixed(0)}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mt: 0.5 }}>
                 Total Value
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#ff9800' }}>
+          <Card sx={{ 
+            position: 'relative',
+            overflow: 'hidden',
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 248, 245, 0.9) 100%)',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '60%',
+              height: '60%',
+              background: 'radial-gradient(circle, rgba(255, 152, 0, 0.15) 0%, transparent 70%)',
+              borderRadius: '50%',
+              transform: 'translate(30%, -30%)',
+            },
+          }}>
+            <CardContent sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 700, 
+                color: '#ff9800',
+                background: 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
                 {stats.categories}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mt: 0.5 }}>
                 Categories
               </Typography>
             </CardContent>
@@ -550,7 +805,7 @@ const Inventory: React.FC = () => {
                         </Box>
                         
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                          {item.category} • {item.supplier} • {item.location}
+                          {item.category} • {item.location}
                         </Typography>
                         
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
@@ -594,6 +849,15 @@ const Inventory: React.FC = () => {
                         <IconButton size="small" onClick={() => handleEditItem(item)}>
                           <Edit />
                         </IconButton>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleDeleteClick(item)}
+                          color="error"
+                          title="Delete item"
+                          disabled={deleting}
+                        >
+                          <Delete />
+                        </IconButton>
                       </Box>
                     </Box>
                   </ListItem>
@@ -622,6 +886,8 @@ const Inventory: React.FC = () => {
       <Dialog open={addDialogOpen || editDialogOpen} onClose={() => {
         setAddDialogOpen(false);
         setEditDialogOpen(false);
+        setIsEditMode(false);
+        setSelectedItem(null);
         setFormData({
           name: '',
           category: '',
@@ -630,7 +896,6 @@ const Inventory: React.FC = () => {
           maxStock: 0,
           unit: '',
           costPerUnit: 0,
-          supplier: '',
           location: '',
         });
       }} maxWidth="md" fullWidth>
@@ -670,8 +935,12 @@ const Inventory: React.FC = () => {
                 fullWidth
                 label="Current Stock"
                 type="number"
-                value={formData.currentStock}
-                onChange={(e) => setFormData({ ...formData, currentStock: Number(e.target.value) })}
+                value={formData.currentStock || ''}
+                onChange={(e) => {
+                  const value = e.target.value === '' ? 0 : Number(e.target.value);
+                  setFormData({ ...formData, currentStock: value });
+                }}
+                inputProps={{ min: 0, step: 1 }}
                 required
               />
             </Grid>
@@ -681,8 +950,12 @@ const Inventory: React.FC = () => {
                 fullWidth
                 label="Min Stock"
                 type="number"
-                value={formData.minStock}
-                onChange={(e) => setFormData({ ...formData, minStock: Number(e.target.value) })}
+                value={formData.minStock || ''}
+                onChange={(e) => {
+                  const value = e.target.value === '' ? 0 : Number(e.target.value);
+                  setFormData({ ...formData, minStock: value });
+                }}
+                inputProps={{ min: 0, step: 1 }}
                 required
               />
             </Grid>
@@ -692,8 +965,12 @@ const Inventory: React.FC = () => {
                 fullWidth
                 label="Max Stock"
                 type="number"
-                value={formData.maxStock}
-                onChange={(e) => setFormData({ ...formData, maxStock: Number(e.target.value) })}
+                value={formData.maxStock || ''}
+                onChange={(e) => {
+                  const value = e.target.value === '' ? 0 : Number(e.target.value);
+                  setFormData({ ...formData, maxStock: value });
+                }}
+                inputProps={{ min: 0, step: 1 }}
                 required
               />
             </Grid>
@@ -728,18 +1005,12 @@ const Inventory: React.FC = () => {
                 InputProps={{
                   startAdornment: <InputAdornment position="start">₱</InputAdornment>,
                 }}
-                value={formData.costPerUnit}
-                onChange={(e) => setFormData({ ...formData, costPerUnit: Number(e.target.value) })}
-                required
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                label="Supplier"
-                value={formData.supplier}
-                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+                value={formData.costPerUnit || ''}
+                onChange={(e) => {
+                  const value = e.target.value === '' ? 0 : Number(e.target.value);
+                  setFormData({ ...formData, costPerUnit: value });
+                }}
+                inputProps={{ min: 0, step: 0.01 }}
                 required
               />
             </Grid>
@@ -763,6 +1034,63 @@ const Inventory: React.FC = () => {
           }}>Cancel</Button>
           <Button variant="contained" onClick={handleSaveItem} disabled={loading}>
             {loading ? 'Saving...' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog 
+        open={deleteDialogOpen} 
+        onClose={handleDeleteCancel}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: theme.palette.background.paper,
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: theme.palette.text.primary, pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Delete sx={{ color: '#f44336', fontSize: 28 }} />
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Delete Inventory Item
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ color: theme.palette.text.primary, mb: 2 }}>
+            Are you sure you want to delete <strong>"{itemToDelete?.name}"</strong>?
+          </Typography>
+          <Alert severity="warning" sx={{ mt: 1 }}>
+            This action cannot be undone. The item will be permanently removed from your inventory.
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button 
+            onClick={handleDeleteCancel}
+            disabled={deleting}
+            sx={{ 
+              color: theme.palette.text.secondary,
+              textTransform: 'none'
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm}
+            variant="contained"
+            disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={16} color="inherit" /> : <Delete />}
+            sx={{ 
+              bgcolor: '#f44336',
+              '&:hover': {
+                bgcolor: '#d32f2f',
+              },
+              textTransform: 'none'
+            }}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

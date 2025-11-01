@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -12,6 +12,8 @@ import {
   Typography,
   IconButton,
   Divider,
+  Button,
+  CircularProgress,
 } from '@mui/material';
 import {
   Notifications,
@@ -20,8 +22,11 @@ import {
   Warning,
   Info,
   Error as ErrorIcon,
+  DoneAll,
+  Refresh,
 } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
+import { API_ENDPOINTS } from '../../config/api';
 
 interface Notification {
   id: string;
@@ -108,7 +113,143 @@ const getNotificationColor = (type: string) => {
 const NotificationCenter: React.FC<NotificationCenterProps> = ({ standalone = false, onClose }) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
-  const [notifications] = useState<Notification[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch notifications from Firestore
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(API_ENDPOINTS.NOTIFICATIONS, {
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Notifications API response:', result);
+        
+        if (result.success && result.data) {
+          const fetchedNotifications = (result.data || []).map((n: any) => ({
+            id: n.id,
+            type: n.type || 'info',
+            title: n.title || 'Notification',
+            message: n.message || '',
+            timestamp: n.timestamp || n.createdAt || new Date().toISOString(),
+            read: n.read || false,
+          }));
+          console.log(`Loaded ${fetchedNotifications.length} notifications`);
+          setNotifications(fetchedNotifications);
+        } else {
+          console.warn('Notifications API returned no data:', result);
+          setNotifications([]);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to fetch notifications:', response.status, errorText);
+        setNotifications([]);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setNotifications([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mark notification as read
+  const markAsRead = async (notificationId: string) => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MARK_NOTIFICATION_READ(notificationId), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        setNotifications(prev => 
+          prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // Mark all as read
+  const markAllAsRead = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MARK_ALL_READ, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      }
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+
+  // Fetch notifications on mount and when dialog opens
+  useEffect(() => {
+    if (open || standalone) {
+      fetchNotifications();
+    }
+  }, [open, standalone]);
+
+  // Listen for custom notification refresh events (triggered after order actions)
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('Notification refresh event triggered');
+      // Add small delay to ensure backend has processed the notification
+      setTimeout(() => {
+        fetchNotifications();
+      }, 1500); // Increased delay to ensure Firestore write completes
+    };
+    
+    window.addEventListener('refresh-notifications', handleRefresh);
+    return () => window.removeEventListener('refresh-notifications', handleRefresh);
+  }, []);
+
+  // Always update badge count every 5 seconds (even when closed)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 5000); // Refresh every 5 seconds to update badge count
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Refresh notifications every 3 seconds when dialog is open (real-time updates)
+  useEffect(() => {
+    if (!open && !standalone) return;
+    
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 3000); // Refresh every 3 seconds when open for real-time updates
+    
+    return () => clearInterval(interval);
+  }, [open, standalone]);
+  
+  // Also refresh when window regains focus (user comes back to tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (open || standalone) {
+        fetchNotifications();
+      } else {
+        // Even if closed, refresh to update badge count
+        fetchNotifications();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [open, standalone]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
   const formatTimestamp = (timestamp: string) => {
@@ -191,14 +332,39 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ standalone = fa
                 <Chip label={unreadCount} size="small" color="error" sx={{ ml: 1 }} />
               )}
             </Box>
-            <IconButton onClick={handleDialogClose} sx={{ color: 'white' }}>
-              <Close />
-            </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton 
+                onClick={fetchNotifications}
+                sx={{ color: 'white' }}
+                title="Refresh notifications"
+              >
+                <Refresh />
+              </IconButton>
+              {unreadCount > 0 && (
+                <Button
+                  size="small"
+                  startIcon={<DoneAll />}
+                  onClick={markAllAsRead}
+                  sx={{ color: 'white', textTransform: 'none' }}
+                >
+                  Mark all read
+                </Button>
+              )}
+              <IconButton onClick={handleDialogClose} sx={{ color: 'white' }}>
+                <Close />
+              </IconButton>
+            </Box>
           </Box>
         </DialogTitle>
         
         <DialogContent sx={{ p: 0 }}>
-          {unreadCount > 0 && (
+          {loading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={32} />
+            </Box>
+          )}
+          
+          {!loading && unreadCount > 0 && (
             <>
               <Box sx={{ px: 2, pt: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
@@ -209,8 +375,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ standalone = fa
                 {groupedNotifications.unread.map((notification, index) => (
                   <React.Fragment key={notification.id}>
                     <ListItem 
+                      onClick={() => !notification.read && markAsRead(notification.id)}
                       sx={{ 
                         py: 2,
+                        cursor: !notification.read ? 'pointer' : 'default',
                         '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#f5f5f5' }
                       }}
                     >
@@ -239,7 +407,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ standalone = fa
             </>
           )}
 
-          {groupedNotifications.read.length > 0 && (
+          {!loading && groupedNotifications.read.length > 0 && (
             <>
               <Box sx={{ px: 2, pt: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
@@ -280,7 +448,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ standalone = fa
             </>
           )}
 
-          {notifications.length === 0 && (
+          {!loading && notifications.length === 0 && (
             <Box sx={{ textAlign: 'center', py: 8 }}>
               <Notifications sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
               <Typography variant="h6" color="text.secondary">
