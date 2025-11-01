@@ -9,7 +9,6 @@ dist/
 */dist/
 client/build/
 client/**/build/
-client/DEPLOY.md
 
 # Environment variables
 .env
