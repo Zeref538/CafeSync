@@ -9,6 +9,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ### Order Management
 
 **Front Counter Station**
+
 - Point-of-sale interface for taking customer orders
 - Real-time menu display with availability status
 - Item customization options (size, milk, extras, special notes)
@@ -18,6 +19,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 - Order placement with instant confirmation
 
 **Order Station**
+
 - Real-time order queue management
 - Order status tracking (pending, preparing, ready, completed)
 - Priority-based order handling
@@ -26,6 +28,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 - Order completion and cancellation
 
 **Kitchen Station**
+
 - Order preparation workflow
 - Status updates (pending, in progress, ready for pickup)
 - Priority-based queue management
@@ -35,6 +38,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ### Inventory Management
 
 **Stock Tracking**
+
 - Real-time inventory levels
 - Minimum stock thresholds
 - Unit-based inventory tracking (kg, liters, pieces)
@@ -43,6 +47,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 - Stock level updates
 
 **Automated Alerts**
+
 - Low stock warnings (configurable intervals)
 - Inventory status monitoring
 - Alert history tracking
@@ -50,6 +55,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ### Menu Management
 
 **Product Catalog**
+
 - Menu item creation with detailed information
 - Category organization
 - Pricing management
@@ -59,11 +65,13 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 - Item editing and deletion
 
 **Add-Ons Management**
+
 - Custom add-on creation
 - Pricing for extras and modifications
 - Category-based organization
 
 **Discount Codes**
+
 - Discount code creation and management
 - Percentage-based discounts
 - Validity period configuration
@@ -72,6 +80,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ### Analytics and Reporting
 
 **Sales Analytics**
+
 - Period-based data analysis (Today, This Week, This Month)
 - Total sales and order volume tracking
 - Average order value calculations
@@ -82,6 +91,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 - Peak hours heatmap
 
 **Staff Performance**
+
 - Sales performance by staff member
 - Order count tracking per employee
 - Completion rates and efficiency metrics
@@ -91,6 +101,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 - Top performers identification
 
 **AI-Powered Recommendations**
+
 - Data-driven business insights
 - Marketing strategy suggestions
 - Product recommendations based on sales patterns
@@ -104,6 +115,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ### Real-Time Notifications
 
 **Notification System**
+
 - Order placement alerts
 - Inventory warnings
 - Low stock notifications
@@ -116,6 +128,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ### Business Intelligence
 
 **Dashboard**
+
 - Key performance indicators at a glance
 - Today's sales and orders
 - Average order time per item
@@ -124,6 +137,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 - Quick access to critical information
 
 **Management Dashboard**
+
 - Period-based performance overview
 - Top staff by sales and orders
 - Sales chart visualization
@@ -133,23 +147,27 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ### Settings and Configuration
 
 **Business Information**
+
 - Store name and contact details
 - Operating hours configuration
 - Address and location information
 - Customizable business settings
 
 **Notification Preferences**
+
 - Enable/disable notification types
 - Sound settings control
 - Per-category notification management
 
 **System Settings**
+
 - Auto-backup configuration
 - Data retention policies
 - API integration settings
 - Analytics tracking preferences
 
 **Account Management**
+
 - User profile viewing
 - Password management
 - Sign-in method configuration
@@ -160,6 +178,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ### Staff Management
 
 **Employee Management**
+
 - Staff account creation
 - Role assignment (Manager, Staff, Admin)
 - Station assignment
@@ -167,6 +186,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 - Strong password enforcement for manager-created accounts
 
 **Authentication**
+
 - Email and password sign-in
 - Google authentication
 - Password linking for Google accounts
@@ -175,6 +195,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ### Weather Integration
 
 **Weather Widget**
+
 - Current weather conditions display
 - Operating hours-based weather simulation
 - Weather impact on operations
@@ -183,24 +204,28 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ## Technical Features
 
 ### Real-Time Updates
+
 - WebSocket-based real-time synchronization
 - Live order updates across all stations
 - Inventory changes reflected immediately
 - Staff performance updates in real-time
 
 ### Data Persistence
+
 - Firebase Firestore database
 - Secure data storage
 - Cloud-based synchronization
 - Audit trail maintenance
 
 ### Responsive Design
+
 - Tablet-optimized interface
 - Touch-friendly controls
 - Responsive layout for various screen sizes
 - Light and dark mode support
 
 ### Performance Optimization
+
 - Efficient data loading
 - Cache management
 - Optimized API calls
@@ -209,6 +234,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 ## User Roles
 
 ### Manager
+
 - Full system access
 - Staff management
 - Settings configuration
@@ -217,6 +243,7 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 - Menu and inventory control
 
 ### Staff
+
 - Order processing
 - Kitchen operations
 - Front counter operations
@@ -227,18 +254,21 @@ CafeSync is a comprehensive web-based management system designed specifically fo
 The system supports comprehensive period-based data analysis:
 
 **Today**
+
 - Real-time data for the current day
 - Hourly sales breakdown
 - Today's staff performance
 - Current inventory status
 
 **This Week**
+
 - Last 7 days of data
 - Daily sales trends
 - Weekly staff performance
 - Week-over-week comparisons
 
 **This Month**
+
 - Last 30 days of data
 - Weekly sales trends
 - Monthly performance metrics
@@ -296,30 +326,35 @@ The system supports comprehensive period-based data analysis:
 ## Business Benefits
 
 **Operational Efficiency**
+
 - Streamlined order processing
 - Reduced manual errors
 - Automated inventory tracking
 - Real-time coordination between stations
 
 **Data-Driven Decisions**
+
 - Comprehensive analytics
 - Performance insights
 - Trend identification
 - Predictive recommendations
 
 **Cost Management**
+
 - Inventory optimization
 - Waste reduction
 - Staff performance tracking
 - Operational cost analysis
 
 **Customer Experience**
+
 - Faster order processing
 - Accurate order fulfillment
 - Consistent service quality
 - Order tracking
 
 **Staff Management**
+
 - Performance visibility
 - Accountability tracking
 - Performance-based insights
@@ -364,5 +399,4 @@ CafeSync is built using modern web technologies:
 
 ---
 
-*CafeSync provides a complete solution for coffee shop management, combining operational tools with business intelligence to help coffee shop owners run their businesses more effectively.*
-
+_CafeSync provides a complete solution for coffee shop management, combining operational tools with business intelligence to help coffee shop owners run their businesses more effectively._
